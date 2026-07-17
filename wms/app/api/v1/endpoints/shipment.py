@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connector_factory import (
@@ -95,15 +95,33 @@ async def _resolve_product(
 async def _available_boxes(
     db: AsyncSession, *, warehouse_id: uuid.UUID, product_id: uuid.UUID
 ) -> int:
-    """Free (un-booked) GROUP-box stock for a SKU in a warehouse."""
+    """Bitta SKU uchun bo'sh qoldiq (pick-task validatsiyasida — kichik N)."""
     res = await db.execute(
-        select(StockItem).where(
+        select(func.coalesce(func.sum(StockItem.qty - StockItem.qty_booked), 0)).where(
             StockItem.warehouse_id == warehouse_id,
             StockItem.product_id == product_id,
             StockItem.status == StockStatus.AVAILABLE,
         )
     )
-    return sum(max(0, s.qty - s.qty_booked) for s in res.scalars())
+    return int(res.scalar_one() or 0)
+
+
+async def _availability_map(
+    db: AsyncSession, *, warehouse_id: uuid.UUID
+) -> dict[uuid.UUID, int]:
+    """Ombordagi BARCHA SKU uchun bo'sh (band qilinmagan) GROUP-quti qoldig'i —
+    BITTA guruhlangan so'rovda. Avval har order-qatorда alohida so'rov qilinardi
+    (N+1) — yuzlab buyurtmaда bu Neon (US) latency bilan timeout'ga olib kelardi.
+    (qty_booked <= qty — CHECK constraint, shuning uchun sum manfiy bo'lmaydi.)"""
+    res = await db.execute(
+        select(StockItem.product_id, func.sum(StockItem.qty - StockItem.qty_booked))
+        .where(
+            StockItem.warehouse_id == warehouse_id,
+            StockItem.status == StockStatus.AVAILABLE,
+        )
+        .group_by(StockItem.product_id)
+    )
+    return {pid: int(total or 0) for pid, total in res.all()}
 
 
 # ── GET orders (pull from Smartup) ───────────────────────────────────────────
@@ -143,6 +161,8 @@ async def get_shipment_orders(
     )
 
     out: list[ShipmentOrder] = []
+    # Barcha SKU mavjudligini BIR marta olamiz (N+1 emas).
+    avail_map = await _availability_map(db, warehouse_id=warehouse_id)
     # Smartup order_products'da GTIN/nom YO'Q — faqat product_code. WMS Product'dan
     # (smartup_product_code, keyin gtin) boyitamiz: nom + gtin + qoldiq.
     prod_cache: dict[str, Product | None] = {}
@@ -157,10 +177,7 @@ async def get_shipment_orders(
         lines: list[ShipmentOrderLine] = []
         for ln in o.lines:
             prod = await _resolve(ln.product_code, ln.gtin)
-            avail = (
-                await _available_boxes(db, warehouse_id=warehouse_id, product_id=prod.id)
-                if prod else None
-            )
+            avail = avail_map.get(prod.id, 0) if prod else None
             pname = None
             if prod is not None and isinstance(prod.name, dict):
                 pname = prod.name.get("uz") or prod.name.get("ru")
