@@ -80,7 +80,15 @@ class Settings(BaseSettings):
 
     @property
     def db_connect_args(self) -> dict:
-        return {"ssl": True} if self._split_db_url()[1] else {}
+        clean, need_ssl = self._split_db_url()
+        args: dict = {}
+        if need_ssl:
+            args["ssl"] = True
+        # PgBouncer (Neon "-pooler" endpoint) transaction pooling asyncpg'ning
+        # server-side prepared statement'lari bilan to'qnashadi → cache'ni o'chiramiz.
+        if "-pooler" in clean:
+            args["statement_cache_size"] = 0
+        return args
 
     @property
     def cors_origins_list(self) -> list[str]:
