@@ -10,7 +10,6 @@ services:
     dockerContext: ./wms
     plan: free
     healthCheckPath: /health
-    dockerCommand: sh start.sh
     envVars:
       - key: DEBUG
         value: "false"

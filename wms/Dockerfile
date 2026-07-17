@@ -9,4 +9,5 @@ RUN poetry install --no-root --no-interaction
 
 COPY . .
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Startda: migratsiya → demo seed (idempotent) → server ($PORT).
+CMD ["sh", "start.sh"]
