@@ -4,7 +4,7 @@
   "outputDirectory": "wms/frontend/dist",
   "framework": null,
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://wms-backend-pj1v.onrender.com/api/:path*" },
+    { "source": "/api/(.*)", "destination": "https://wms-backend-pj1v.onrender.com/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
