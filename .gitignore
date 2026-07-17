@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Env / secrets
+.env
+*.env
+!.env.example
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+# Electron (Buxgalteriya Ocard) build chiqishlari
+out/
+release/
+*.asar
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Build tools (Android TSD)
+TSD/.gradle/
+TSD/build/
+TSD/app/build/
+TSD/.kotlin/
+TSD/.tools/
+*.zip
+
+# Alohida desktop ilova (litsenziya siri bor) — public repodan chiqarilgan
+Buxgalteriya Ocard/

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="4dp"
+    app:strokeWidth="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Rank + Location code row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+
+            <TextView
+                android:id="@+id/tvSuggestionRank"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_rank_circle"
+                android:gravity="center"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="12dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvSuggestionLocationCode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textColor="#1A1A1A"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvSuggestionZone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#555555"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvSuggestionScore"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#1565C0"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Score bar -->
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/scoreBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:indicatorColor="#1565C0"
+            app:trackColor="#E3F2FD"
+            app:trackThickness="6dp" />
+
+        <!-- Reason -->
+        <TextView
+            android:id="@+id/tvSuggestionReason"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:textColor="#777777"
+            android:textSize="12sp" />
+
+        <!-- Confirm button -->
+        <Button
+            android:id="@+id/btnConfirmSuggestion"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="@string/putaway_confirm_btn"
+            android:textSize="14sp"
+            style="@style/Widget.MaterialComponents.Button" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -1,0 +1,34 @@
+# Render Blueprint — WMS backend (FastAPI + fon workerlari).
+# Neon (bepul Postgres) bilan ishlaydi. Deploy: Render → New → Blueprint → shu repo.
+#
+# Har deploy/restartda: migratsiyalar → demo seed (idempotent) → uvicorn ($PORT).
+services:
+  - type: web
+    name: wms-backend
+    runtime: docker
+    dockerfilePath: ./wms/Dockerfile
+    dockerContext: ./wms
+    plan: free
+    healthCheckPath: /health
+    dockerCommand: >
+      sh -c "alembic upgrade head &&
+      python -m scripts.seed_admin &&
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DEBUG
+        value: "false"
+      # Kuchli sirlar avtomatik generatsiya qilinadi (config guard talab qiladi).
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      # Neon connection string (asyncpg). Render dashboard'da qo'lda kiritiladi:
+      #   postgresql+asyncpg://USER:PASSWORD@HOST/DB?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      # Vercel frontend domeni (vergul bilan bir nechta). Masalan:
+      #   https://wms-xxx.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      - key: LOG_JSON
+        value: "true"

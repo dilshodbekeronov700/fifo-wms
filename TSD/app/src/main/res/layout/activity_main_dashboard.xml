@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/dashboard_background"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingStart="20dp"
+    android:paddingTop="24dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardProduction"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="152dp"
+            app:cardBackgroundColor="@color/dashboard_production"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="152dp"
+                android:padding="28dp"
+                android:text="@string/dashboard_production"
+                android:textColor="@color/dashboard_text_on_production"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.02" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardCheck"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="152dp"
+            app:cardBackgroundColor="@color/dashboard_production"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="152dp"
+                android:padding="28dp"
+                android:text="@string/dashboard_check"
+                android:textColor="@color/dashboard_text_on_production"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.02" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardImport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="152dp"
+            app:cardBackgroundColor="@color/dashboard_production"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="152dp"
+                android:padding="28dp"
+                android:text="@string/dashboard_import"
+                android:textColor="@color/dashboard_text_on_production"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.02" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- WMS Putaway — analitikaga asoslangan joylash -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardPutaway"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="152dp"
+            app:cardBackgroundColor="#1565C0"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="152dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="28dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/dashboard_putaway"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"
+                    android:gravity="center" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/dashboard_putaway_sub"
+                    android:textColor="#B3D9FF"
+                    android:textSize="13sp"
+                    android:gravity="center" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- WMS Kirim -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardReceipt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="120dp"
+            app:cardBackgroundColor="#00897B"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="120dp"
+                android:padding="24dp"
+                android:text="@string/dashboard_receipt"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- WMS Terish / Otgruzka -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardPicking"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="120dp"
+            app:cardBackgroundColor="#5E35B1"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="120dp"
+                android:padding="24dp"
+                android:text="@string/dashboard_picking"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- WMS Inventarizatsiya -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardInventory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="120dp"
+            app:cardBackgroundColor="#EF6C00"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="120dp"
+                android:padding="24dp"
+                android:text="@string/dashboard_inventory"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- WMS Yorliqlar -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="120dp"
+            app:cardBackgroundColor="#455A64"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="120dp"
+                android:padding="24dp"
+                android:text="@string/dashboard_label"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- WMS Tasks / offline sync -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardTasks"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:focusable="true"
+            android:minHeight="152dp"
+            app:cardBackgroundColor="#2E7D32"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:rippleColor="@color/card_ripple"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="152dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="28dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/dashboard_tasks"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.02"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/textSyncStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/dashboard_tasks_sub"
+                    android:textColor="#C8E6C9"
+                    android:textSize="13sp"
+                    android:gravity="center" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

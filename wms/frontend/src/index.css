@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* Dark mode toggled by `.dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #f1f5f9;
+  color: #1e293b;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: #3b82f6; color: #fff; }
+
+/* Nozik, zamonaviy scrollbar (world-class sayqal) */
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1; border-radius: 9999px;
+  border: 2px solid transparent; background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+.dark *::-webkit-scrollbar-thumb { background: #475569; background-clip: content-box; }
+.dark *::-webkit-scrollbar-thumb:hover { background: #64748b; background-clip: content-box; }
+
+/*
+ * Yagona shadow / chuqurlik shkalasi. Barcha kartalar shu utilitalarni ishlatadi
+ * (avval har sahifa o'zicha shadow-sm/inline boxShadow ishlatardi — nomuvofiq edi).
+ */
+@layer utilities {
+  .shadow-card {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 1px 3px rgba(15, 23, 42, .06);
+  }
+  .shadow-card-hover {
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .10), 0 3px 8px rgba(15, 23, 42, .06);
+  }
+  .shadow-pop {
+    box-shadow: 0 16px 48px rgba(15, 23, 42, .18), 0 4px 12px rgba(15, 23, 42, .10);
+  }
+  .ring-focus {
+    outline: none;
+  }
+  .ring-focus:focus-visible {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .35);
+    border-color: #3b82f6;
+  }
+}
+
+/*
+ * Full dark theme — no per-page edits required.
+ *
+ * Tailwind v4 emits colour utilities as `var(--color-<name>)`. By redefining the
+ * slate ramp + white under `.dark`, every existing `bg-white` / `text-slate-800`
+ * / `border-slate-200` across all pages flips automatically. The ramp is
+ * inverted (light surfaces → dark, dark text → light) and hand-tuned for
+ * contrast. Coloured accents (blue/green/amber/red) are literal hex and stay.
+ */
+.dark {
+  color-scheme: dark;
+  --color-white: #1e293b;       /* cards / panels / inputs */
+  --color-slate-50:  #0f172a;   /* page background */
+  --color-slate-100: #111c30;   /* main area */
+  --color-slate-200: #334155;   /* borders / dividers */
+  --color-slate-300: #475569;
+  --color-slate-400: #8b9bb4;   /* muted text */
+  --color-slate-500: #9aa9c2;   /* secondary muted */
+  --color-slate-600: #cbd5e1;   /* secondary text */
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;   /* headings */
+  --color-slate-900: #f8fafc;   /* strongest text */
+}
+
+.dark, .dark body, .dark #root { background: #0f172a; color: #f8fafc; }
+
+/*
+ * Sidebar is intentionally dark in BOTH themes, so it must NOT follow the
+ * inversion. Restoring the true slate ramp within the sidebar keeps
+ * `bg-slate-900` etc. rendering as real slate regardless of theme.
+ */
+.sidebar-shell {
+  --color-white: #ffffff;
+  --color-slate-50:  #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+}

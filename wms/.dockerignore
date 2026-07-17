@@ -1,0 +1,13 @@
+frontend/
+tests/
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+backups/
+docs/
+*.md
+.DS_Store

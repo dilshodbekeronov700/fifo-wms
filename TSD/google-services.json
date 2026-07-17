@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "937406631256",
+    "project_id": "tsd-soft",
+    "storage_bucket": "tsd-soft.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:937406631256:android:c7636cbae7d04272c7292d",
+        "android_client_info": {
+          "package_name": "com.android.application"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2oo5vscMbDi4F94ylgRvjvGZYbywQZf0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

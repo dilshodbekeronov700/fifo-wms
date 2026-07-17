@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "wms"
+version = "0.1.0"
+description = "Warehouse Management System — SaaS"
+authors = []
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.30.0"}
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.0"}
+asyncpg = "^0.30.0"
+alembic = "^1.13.0"
+pydantic = {extras = ["email"], version = "^2.9.0"}
+pydantic-settings = "^2.5.0"
+passlib = {extras = ["argon2"], version = "^1.7.4"}
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+httpx = "^0.28.0"
+tenacity = "^9.0.0"
+python-multipart = "^0.0.12"
+openpyxl = "^3.1.5"
+reportlab = "^5.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+pytest-cov = "^5.0.0"
+aiosqlite = "^0.20.0"
+ruff = "^0.7.0"
+mypy = "^1.13.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E741: ambiguous var names (l) — stylistic; F821 in models: SQLAlchemy string
+# forward-refs ("User", "Tenant") resolved at runtime by the mapper registry.
+ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/models/*" = ["F821"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"

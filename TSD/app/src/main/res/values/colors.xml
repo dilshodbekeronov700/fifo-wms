@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- Splash: toza oq -->
+    <color name="splash_background">#FFFFFF</color>
+    <color name="dashboard_background">#F0F2F7</color>
+    <color name="dashboard_production">#0A3A7A</color>
+    <color name="dashboard_platinum">#D1D9E3</color>
+    <color name="dashboard_platinum_stroke">#A8B4C4</color>
+    <color name="dashboard_text_on_production">#FFFFFF</color>
+    <color name="dashboard_text_primary">#0D1B2A</color>
+    <color name="dashboard_text_secondary">#415A77</color>
+    <color name="card_ripple">#33000000</color>
+    <color name="putaway_top_bg">#E3F2FD</color>
+</resources>

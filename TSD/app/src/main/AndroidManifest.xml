@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_app_logo"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_app_logo"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.PM84Scanner">
+
+        <activity
+            android:name=".SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.PM84Scanner.Splash">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MainDashboardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ProductionMenuActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ImportMenuActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".CheckMenuActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".CheckSingleActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".PutawayActivity"
+            android:exported="false"
+            android:label="@string/putaway_title" />
+
+        <activity
+            android:name=".TasksActivity"
+            android:exported="false"
+            android:label="@string/tasks_title" />
+
+        <activity
+            android:name=".ReceiptActivity"
+            android:exported="false"
+            android:label="@string/receipt_title" />
+
+        <activity
+            android:name=".PickingActivity"
+            android:exported="false"
+            android:label="@string/picking_title" />
+
+        <activity
+            android:name=".InventoryActivity"
+            android:exported="false"
+            android:label="@string/inventory_title" />
+
+
+        <receiver
+            android:name=".DecodeBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="device.scanner.EVENT" />
+                <action android:name="com.pointmobile.pda.samples.decode" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
