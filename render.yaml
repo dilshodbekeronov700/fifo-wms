@@ -10,10 +10,7 @@ services:
     dockerContext: ./wms
     plan: free
     healthCheckPath: /health
-    dockerCommand: >
-      sh -c "alembic upgrade head &&
-      python -m scripts.seed_admin &&
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    dockerCommand: sh start.sh
     envVars:
       - key: DEBUG
         value: "false"
