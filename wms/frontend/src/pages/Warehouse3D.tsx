@@ -17,7 +17,6 @@ import { BUILDING, CELL_W, ROW_D } from '../lib/warehouseLayout'
  */
 
 const TH = 1.35            // etaj balandligi
-const BOX_H = 0.95
 const BASE_Y = 0.12
 const EYE = 1.7            // ko'z darajasi (m)
 
@@ -146,7 +145,7 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
 
     // Matn sprite
     const labelDisposables: THREE.SpriteMaterial[] = []
-    function makeLabel(text: string, color: string, bg: string, s = 1): THREE.Sprite {
+    function makeLabel(text: string, color: string, bg: string, s = 1, depth = false): THREE.Sprite {
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')!
       const fs = 48
@@ -159,7 +158,7 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
       ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText(text, w / 2, canvas.height / 2)
       const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = 4
-      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true })
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: depth, depthWrite: false, transparent: true })
       labelDisposables.push(mat)
       const sp = new THREE.Sprite(mat)
       sp.scale.set((w / canvas.height) * 1.5 * s, 1.5 * s, 1)
@@ -224,8 +223,8 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
       // Shrink-wrap qilingan tiniq suv butilkalari — yaltiroq (past roughness),
       // ozgina shaffof plastik plyonka. Instance rangi tepada beriladi.
       const loadMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff, roughness: 0.18, metalness: 0.0,
-        transparent: true, opacity: 0.92,
+        color: 0xffffff, roughness: 0.14, metalness: 0.02,
+        transparent: true, opacity: 0.96,
       })
       const postMat = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.42, metalness: 0.55 })
       const beamMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.5, metalness: 0.45 })
@@ -267,9 +266,9 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
             dummy.scale.set(CELL_W * 0.9, 0.14, ROW_D * 0.86)
             dummy.updateMatrix()
             palletMesh.setMatrixAt(si, dummy.matrix)
-            const lh = BOX_H
+            const lh = TH * 0.72
             dummy.position.set(px, tierY + 0.14 + lh / 2, pz)
-            dummy.scale.set(CELL_W * 0.8, lh, ROW_D * 0.76)
+            dummy.scale.set(CELL_W * 0.88, lh, ROW_D * 0.86)
             dummy.updateMatrix()
             slotMatrix.push(dummy.matrix.clone())
             if (status === 'empty') loadMesh.setMatrixAt(si, hidden)
@@ -304,8 +303,8 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
             dummy.updateMatrix(); beamMesh.setMatrixAt(bi++, dummy.matrix)
           }
         }
-        const sp = makeLabel(rack.name, '#ffffff', '#2563eb', 0.95)
-        sp.position.set(cx, rackTopY + 0.6, oz + ROW_D / 2)
+        const sp = makeLabel(rack.name, '#ffffff', '#2563eb', 0.4, true)
+        sp.position.set(cx, rackTopY + 0.35, oz + ROW_D / 2)
         root.add(sp)
       }
       palletMesh.instanceMatrix.needsUpdate = true
