@@ -224,13 +224,14 @@ async def sync_orders(
     /shipment/pick-task orqali yaratiladi — bu yerda faqat ko'rinish uchun
     snapshot olamiz (avto-pull, lekin avto-allokatsiya YO'Q).
 
-    Status kodlari (Smartup trade order$export'dan tasdiqlangan): `A`=active/yangi,
-    `B#N`=booked/yangi, `B#S`=booked/jo'natilgan, `C`=completed/yetkazilgan.
-    Ochiq ish = A,B#N,B#S (tugallangan `C` va qoralama EMAS). (Eski `B#W` kodi
-    ma'lumotda umuman yo'q edi → snapshot doim 0 qaytarardi.)
+    Status kodlari (order$export + Smartup UI bilan tasdiqlangan 2026-07-18):
+    `B#N`=Новый (yangi, teriladi), `B#V`=jarayonda (teriladi), `B#S`=Отгружен,
+    `C`=Доставлен, `D`=qoralama, `A`=ARXIV (Smartup faol ro'yxatda ko'rsatmaydi).
+    Ochiq (terilishi kerak) ish = B#N + B#V. (Ilgari xato `A` qo'shilgani uchun
+    snapshot ~749 gacha shishardi — A=638 arxiv edi.)
     """
     orders = await client.get_orders(
-        statuses=["A", "B#N", "B#S"], begin_modified_on=begin_modified_on
+        statuses=["B#N", "B#V"], begin_modified_on=begin_modified_on
     )
     return {
         "fetched": len(orders),

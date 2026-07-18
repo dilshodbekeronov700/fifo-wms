@@ -40,6 +40,7 @@ class AllotmentLine:
     take_qty: int                        # in boxes (GROUP)
     marking_codes: list[str] = field(default_factory=list)
     is_partial_pallet: bool = False      # pallet will become "open" after this pick
+    batch: Batch | None = None           # FEFO/FIFO manbasi — partiya/muddat/i.ch. sana
 
 
 @dataclass
@@ -94,6 +95,7 @@ async def build_pick_plan(
                 take_qty=take,
                 marking_codes=codes,
                 is_partial_pallet=is_partial,
+                batch=batch,
             )
         )
         remaining -= take

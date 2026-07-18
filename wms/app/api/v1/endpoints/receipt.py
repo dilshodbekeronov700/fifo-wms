@@ -36,6 +36,42 @@ router = APIRouter(tags=["receipt & putaway"])
 DB = Annotated[AsyncSession, Depends(get_db)]
 
 
+def _num(v) -> float | None:
+    """Smartup son maydonini xavfsiz float'ga (bo'sh/None → None)."""
+    if v in (None, ""):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _first(d: dict, *keys):
+    """Berilgan kalitlardan birinchi bo'sh bo'lmagan qiymat (Smartup nomlash har xil)."""
+    for k in keys:
+        val = d.get(k)
+        if val not in (None, ""):
+            return val
+    return None
+
+
+def _normalize_receipt_item(it: dict) -> dict:
+    """Kirim/xarid qatorini (product-level) barcha foydali Smartup maydonlari bilan
+    normallashtiramiz — nomlash kelishmovchiliklarini fallback bilan yopamiz."""
+    return {
+        "product_code": _first(it, "product_code", "product_unit_code"),
+        "product_name": _first(it, "product_name", "product_unit_name", "name"),
+        "gtin": _first(it, "gtin", "barcode"),
+        "quantity": _num(_first(it, "quant", "quantity", "input_quant", "purchase_quant", "qty")),
+        "uom": _first(it, "measure_code", "measure", "uom"),
+        "price": _num(_first(it, "price", "input_price", "purchase_price")),
+        "total": _num(_first(it, "total_value", "margin_value", "total_margin_value", "summa", "amount")),
+        "series_number": _first(it, "series_number", "series", "batch_number", "party_number"),
+        "production_date": _first(it, "production_date", "manufacture_date"),
+        "expiry_date": _first(it, "expiry_date", "expiration_date", "expire_date"),
+    }
+
+
 @router.get(
     "/receipt/production-inputs",
     dependencies=[require_permission("receipt", "view")],
@@ -54,10 +90,26 @@ async def production_inputs(
 
     client = await get_smartup_client(db, user.tenant_id)
     codes = doc_svc.warehouse_filter(wh.smartup_warehouse_code)
-    inputs = await client.get_inputs(
+    rows = await client.get_inputs(
         warehouse_codes=codes, begin_modified_on=begin_modified_on
     )
-    return {"count": len(inputs), "inputs": inputs}
+    inputs_out = []
+    for p in rows:
+        items = p.get("input_items") or p.get("input_products") or []
+        inputs_out.append({
+            "input_id": str(_first(p, "input_id", "id") or ""),
+            "input_number": _first(p, "input_number", "invoice_number", "delivery_number"),
+            "date": _first(p, "input_date", "input_time"),
+            "warehouse_code": _first(p, "warehouse_code"),
+            "warehouse_name": _first(p, "warehouse_name"),
+            "status_code": _first(p, "status_code", "status"),
+            "posted": p.get("posted"),
+            "note": _first(p, "note", "comment"),
+            "total": _num(_first(p, "total_value", "total_margin_value")),
+            "lines": len(items),
+            "items": [_normalize_receipt_item(it) for it in items],
+        })
+    return {"count": len(inputs_out), "inputs": inputs_out}
 
 
 @router.get(
@@ -83,20 +135,24 @@ async def purchases(
     )
     purchases_out = []
     for p in rows:
-        try:
-            total = float(p.get("total_margin_value")) if p.get("total_margin_value") else None
-        except (TypeError, ValueError):
-            total = None
+        items = p.get("purchase_items") or p.get("purchase_products") or []
         purchases_out.append({
-            "purchase_id": str(p.get("purchase_id", "")),
-            "purchase_number": p.get("purchase_number") or p.get("invoice_number"),
-            "date": p.get("input_date") or (p.get("purchase_time") or "").split(" ")[0],
-            "supplier_code": p.get("supplier_code"),
-            "invoice_number": p.get("invoice_number"),
-            "status_code": p.get("status_code"),
+            "purchase_id": str(_first(p, "purchase_id", "id") or ""),
+            "purchase_number": _first(p, "purchase_number", "invoice_number"),
+            "date": _first(p, "input_date") or (_first(p, "purchase_time") or "").split(" ")[0] or None,
+            "supplier_code": _first(p, "supplier_code"),
+            "supplier_name": _first(p, "supplier_name", "person_name"),
+            "invoice_number": _first(p, "invoice_number"),
+            "contract_number": _first(p, "contract_number", "deal_number"),
+            "warehouse_code": _first(p, "warehouse_code"),
+            "warehouse_name": _first(p, "warehouse_name"),
+            "currency": _first(p, "currency_code", "currency"),
+            "status_code": _first(p, "status_code", "status"),
             "posted": p.get("posted"),
-            "lines": len(p.get("purchase_items") or []),
-            "total": total,
+            "note": _first(p, "note", "comment"),
+            "lines": len(items),
+            "total": _num(_first(p, "total_margin_value", "total_value")),
+            "items": [_normalize_receipt_item(it) for it in items],
         })
     return {"count": len(purchases_out), "purchases": purchases_out}
 

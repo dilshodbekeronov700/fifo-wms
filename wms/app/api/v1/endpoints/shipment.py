@@ -47,10 +47,17 @@ from app.services.route_optimizer import optimise_route
 router = APIRouter(prefix="/shipment", tags=["shipment"])
 DB = Annotated[AsyncSession, Depends(get_db)]
 
-# Terilishi kerak bo'lgan ochiq buyurtma statuslari (Smartup order$export'dan tasdiqlangan):
-# A=active/yangi, B#N=booked/yangi, B#S=booked/jo'natilgan. Tugallangan (C) va qoralama EMAS.
-# (Eski default `B#W` bu akkaunt ma'lumotida umuman yo'q edi → ro'yxat doim bo'sh chiqardi.)
-OPEN_ORDER_STATUSES = ["A", "B#N", "B#S"]
+# Buyurtma statuslari — jonli order$export + Smartup UI bilan tasdiqlangan (2026-07-18):
+#   B#N = Новый (yangi, terilishi kerak)          — Smartup "Новый" bilan aniq mos (88=88)
+#   B#V = Band/tasdiqlangan (jarayonda, teriladi)
+#   B#S = Отгружен (allaqachon jo'natilgan)        — Smartup "Отгружен" bilan mos (25=25)
+#   C   = Доставлен (yetkazilgan) · D = Черновик (qoralama)
+#   A   = ARXIV — Smartup faol ro'yxatda KO'RSATMAYDI (638 ta). Ilgari bu yerga
+#         xato kiritilgani uchun "ochiq" ro'yxat 749 gacha shishardi.
+# Terilishi kerak (ochiq) = B#N + B#V. "Barcha" ko'rinishi ham arxivni (A) chiqarib tashlaydi,
+# shunda WMS soni Smartup UI (~327) bilan mos keladi.
+OPEN_ORDER_STATUSES = ["B#N", "B#V"]
+ALL_ORDER_STATUSES = ["B#N", "B#V", "B#S", "C", "D"]  # A (arxiv) chiqarilgan
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -142,17 +149,19 @@ async def get_shipment_orders(
 ):
     """Pull Smartup orders so the manager can start a pick.
 
-    Default: faqat OCHIQ buyurtmalar (A/B#N/B#S). `all_statuses=true` bo'lsa —
-    status filtrisiz BARCHA buyurtmalar (yetkazilgan/qoralama ham; Smartup oxirgi
-    7 kun oynasi bilan cheklangan). Lines WMS product_id + mavjudlik bilan boyitiladi."""
+    Default: faqat OCHIQ (terilishi kerak) buyurtmalar (B#N/B#V). `all_statuses=true`
+    bo'lsa — arxiv (A) dan tashqari BARCHA buyurtmalar (yetkazilgan/jo'natilgan/qoralama
+    ham) — Smartup UI ro'yxati bilan mos (~327). Lines WMS product_id + mavjudlik bilan
+    boyitiladi."""
     if user.tenant_id is None:
         raise HTTPException(status_code=400, detail="Tenant context required")
     wh = await ensure_warehouse_access(db, user, warehouse_id)
 
     client = await get_smartup_client(db, user.tenant_id)
     wh_codes = doc_svc.warehouse_filter(wh.smartup_warehouse_code)
-    # all_statuses → filtr YO'Q (Smartup barcha statusli buyurtmalarni qaytaradi).
-    effective_statuses = None if all_statuses else (statuses or OPEN_ORDER_STATUSES)
+    # all_statuses → arxivdan (A) tashqari HAMMASI (Smartup UI kabi ~327).
+    # Aks holda faqat ochiq (terilishi kerak) — B#N/B#V.
+    effective_statuses = statuses or (ALL_ORDER_STATUSES if all_statuses else OPEN_ORDER_STATUSES)
     orders = await client.get_orders(
         statuses=effective_statuses,
         warehouse_codes=wh_codes,
@@ -362,16 +371,34 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
     route_stops = optimise_route(list(unique_locations.values()))
     loc_seq = {stop.location.id: stop.sequence for stop in route_stops}
 
+    # Yig'ish varag'ida ko'rsatish uchun mahsulot nomi/kodini oldindan yuklaymiz.
+    prod_ids = {pid for _, pid in resolved_lines}
+    prod_by_id: dict[uuid.UUID, Product] = {}
+    if prod_ids:
+        res = await db.execute(select(Product).where(Product.id.in_(prod_ids)))
+        prod_by_id = {p.id: p for p in res.scalars()}
+
+    def _pname(prod: Product | None) -> str | None:
+        if prod is not None and isinstance(prod.name, dict):
+            return prod.name.get("uz") or prod.name.get("ru")
+        return None
+
     route: list[PickStop] = []
     for al in sorted(all_allotments, key=lambda a: loc_seq.get(a.location.id, 999)):
+        prod = prod_by_id.get(al.stock_item.product_id)
         route.append(PickStop(
             sequence=loc_seq.get(al.location.id, 0),
             location_id=al.location.id,
             location_code=al.location.code,
             product_id=al.stock_item.product_id,
+            product_code=prod.smartup_product_code if prod else None,
+            product_name=_pname(prod),
             take_qty=al.take_qty,
             marking_codes=al.marking_codes,
             is_partial_pallet=al.is_partial_pallet,
+            lot_number=al.batch.lot_number if al.batch else None,
+            production_date=al.batch.production_date if al.batch else None,
+            expiry_date=al.batch.expiry_date if al.batch else None,
         ))
 
     # 7. PICK task for TSD.

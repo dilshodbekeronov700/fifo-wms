@@ -46,11 +46,13 @@ interface RouteStop {
   sequence: number
   location_code: string
   product_id?: string
+  product_code?: string
   product_name?: string
   take_qty: number
   marking_codes?: string[]
-  partial_pallet?: boolean
-  batch_id?: string
+  is_partial_pallet?: boolean
+  lot_number?: string
+  production_date?: string
   expiry_date?: string
 }
 
@@ -79,7 +81,7 @@ export default function Shipment() {
     refetch: refetchOrders,
   } = useQuery({
     queryKey: ['shipment-orders', wid],
-    queryFn: () => getShipmentOrders(wid),
+    queryFn: () => getShipmentOrders({ warehouse_id: wid }),
     enabled: !!wid,
   })
 
@@ -297,20 +299,25 @@ export default function Shipment() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-medium text-slate-700">{stop.location_code}</span>
-                        <span className="text-slate-500">{stop.take_qty} dona</span>
-                        {stop.partial_pallet && (
+                        <span className="text-slate-500 font-medium">{stop.take_qty} dona</span>
+                        {stop.is_partial_pallet && (
                           <Badge tone="orange">
                             <Layers size={10} /> Qisman pallet
                           </Badge>
                         )}
                       </div>
-                      {(stop.product_name || stop.product_id) && (
-                        <p className="text-slate-400 truncate mt-0.5">
+                      {(stop.product_name || stop.product_code || stop.product_id) && (
+                        <p className="text-slate-500 truncate mt-0.5">
                           {stop.product_name ?? stop.product_id}
+                          {stop.product_code && <span className="text-slate-400 font-mono"> · {stop.product_code}</span>}
                         </p>
                       )}
-                      {stop.expiry_date && (
-                        <p className="text-slate-400 mt-0.5">Yaroqlilik: {stop.expiry_date}</p>
+                      {(stop.lot_number || stop.production_date || stop.expiry_date) && (
+                        <p className="text-slate-400 mt-0.5 flex flex-wrap gap-x-3">
+                          {stop.lot_number && <span>Partiya: {stop.lot_number}</span>}
+                          {stop.production_date && <span>I.ch.: {stop.production_date}</span>}
+                          {stop.expiry_date && <span>Muddat: {stop.expiry_date}</span>}
+                        </p>
                       )}
                       {stop.marking_codes && stop.marking_codes.length > 0 && (
                         <p className="text-slate-300 mt-0.5">{stop.marking_codes.length} markirovka kodi</p>

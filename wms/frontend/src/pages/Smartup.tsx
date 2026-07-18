@@ -26,8 +26,8 @@ type Tab = 'orders' | 'inputs' | 'movements' | 'stocktaking' | 'writeoffs' | 'sv
 
 // Smartup buyurtma status kodlari → tushunarli o'zbekcha yorliq + rang.
 const ORDER_STATUS: Record<string, { label: string; cls: string }> = {
-  'A':   { label: 'Yangi',              cls: 'bg-emerald-100 text-emerald-700' },
-  'B#N': { label: 'Band (yangi)',       cls: 'bg-sky-100 text-sky-700' },
+  'A':   { label: 'Arxiv',              cls: 'bg-slate-100 text-slate-500' },
+  'B#N': { label: 'Yangi',              cls: 'bg-emerald-100 text-emerald-700' },
   'B#W': { label: 'Jo\'natishni kutmoqda', cls: 'bg-blue-100 text-blue-700' },
   'B#S': { label: 'Jo\'natilgan',        cls: 'bg-indigo-100 text-indigo-700' },
   'B#E': { label: 'Band (tahrir)',      cls: 'bg-amber-100 text-amber-700' },
@@ -206,11 +206,11 @@ export default function Smartup() {
               <FilterSelect label="Barcha holatlar" value={orderStatus} onChange={setOrderStatus} options={statusOpts} />
               <span className="text-xs text-slate-400">{filtered.length} / {all.length}</span>
             </FilterBar>
-            {showAll && (
-              <p className="text-xs text-slate-400">
-                Barcha statusli buyurtmalar (yetkazilgan/qoralama ham). Smartup API oxirgi 7 kun bilan cheklangan.
-              </p>
-            )}
+            <p className="text-xs text-slate-400">
+              {showAll
+                ? 'Barcha buyurtmalar (arxivdan tashqari) — Smartup ro\'yxati bilan mos.'
+                : 'Terilishi kerak bo\'lgan ochiq buyurtmalar (Yangi / jarayonda).'}
+            </p>
             <OrdersTable rows={filtered} loading={orders.isLoading}
               canWrite={canWriteErp} onChanged={() => orders.refetch()} />
           </div>
@@ -386,34 +386,96 @@ const PURCHASE_STATUS: Record<string, { label: string; cls: string }> = {
   'C': { label: 'Yakunlangan', cls: 'bg-rose-100 text-rose-700' },
   'D': { label: 'Qoralama', cls: 'bg-slate-100 text-slate-600' },
 }
+// Kirim/xarid qatorlari (item detali) — ochilgan hujjat ostida ko'rsatiladi.
+function ReceiptItems({ items, colSpan }: { items: any[]; colSpan: number }) {
+  const nf = (v: number | null | undefined) => (v == null ? '—' : new Intl.NumberFormat('uz-UZ').format(v))
+  if (!items?.length) return (
+    <tr><td colSpan={colSpan} className="px-8 py-2 text-xs text-slate-400 bg-slate-50/60">Qatorlar yo'q</td></tr>
+  )
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-3 py-2 bg-slate-50/60">
+        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+          <table className="w-full text-xs">
+            <thead className="text-slate-400">
+              <tr>
+                <th className="text-left px-2 py-1.5">Kod</th>
+                <th className="text-left px-2 py-1.5">Nomi</th>
+                <th className="text-left px-2 py-1.5">GTIN</th>
+                <th className="text-right px-2 py-1.5">Miqdor</th>
+                <th className="text-left px-2 py-1.5">O'lch.</th>
+                <th className="text-right px-2 py-1.5">Narx</th>
+                <th className="text-right px-2 py-1.5">Summa</th>
+                <th className="text-left px-2 py-1.5">Partiya</th>
+                <th className="text-left px-2 py-1.5">I.ch. sana</th>
+                <th className="text-left px-2 py-1.5">Muddati</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it: any, j: number) => (
+                <tr key={j} className="border-t border-slate-100">
+                  <td className="px-2 py-1 font-mono">{it.product_code || '—'}</td>
+                  <td className="px-2 py-1">{it.product_name || '—'}</td>
+                  <td className="px-2 py-1 font-mono text-slate-500">{it.gtin || '—'}</td>
+                  <td className="px-2 py-1 text-right">{nf(it.quantity)}</td>
+                  <td className="px-2 py-1 text-slate-500">{it.uom || '—'}</td>
+                  <td className="px-2 py-1 text-right">{nf(it.price)}</td>
+                  <td className="px-2 py-1 text-right">{nf(it.total)}</td>
+                  <td className="px-2 py-1">{it.series_number || '—'}</td>
+                  <td className="px-2 py-1 text-slate-500">{fmtDate(it.production_date)}</td>
+                  <td className="px-2 py-1 text-slate-500">{fmtDate(it.expiry_date)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 function PurchasesTable({ q }: { q: any }) {
   const rows = (q.data as any)?.purchases ?? []
+  const [open, setOpen] = useState<Record<number, boolean>>({})
   if (!rows.length) return <Empty loading={q.isLoading} text="Ta'minotchidan xarid yo'q (oxirgi 7 kun)" />
   return (
     <div className="border border-slate-200 rounded-lg overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-slate-50 text-slate-500 text-xs">
           <tr>
+            <th className="w-8 px-2 py-2"></th>
             <th className="text-left px-3 py-2">Xarid №</th>
             <th className="text-left px-3 py-2">Ta'minotchi</th>
             <th className="text-left px-3 py-2">Sana</th>
             <th className="text-left px-3 py-2">Schyot-faktura</th>
+            <th className="text-left px-3 py-2">Sklad</th>
             <th className="text-left px-3 py-2">Holati</th>
+            <th className="text-right px-3 py-2">Summa</th>
             <th className="text-right px-3 py-2">Mahsulot</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((p: any, i: number) => {
             const b = PURCHASE_STATUS[p.status_code] ?? { label: p.status_code || '—', cls: 'bg-slate-100 text-slate-600' }
+            const isOpen = !!open[i]
             return (
-              <tr key={i} className="border-t border-slate-100">
-                <td className="px-3 py-1.5 font-mono text-xs">{p.purchase_number || p.purchase_id}</td>
-                <td className="px-3 py-1.5">{p.supplier_code || '—'}</td>
-                <td className="px-3 py-1.5 text-slate-600">{p.date || '—'}</td>
-                <td className="px-3 py-1.5 text-slate-500">{p.invoice_number || '—'}</td>
-                <td className="px-3 py-1.5"><span className={`text-xs rounded px-1.5 py-0.5 ${b.cls}`}>{b.label}</span></td>
-                <td className="px-3 py-1.5 text-right">{p.lines ?? 0} ta</td>
-              </tr>
+              <Fragment key={i}>
+                <tr className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer"
+                  onClick={() => setOpen(o => ({ ...o, [i]: !o[i] }))}>
+                  <td className="px-2 py-1.5 text-slate-400">
+                    {(p.items?.length ?? 0) > 0 && (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+                  </td>
+                  <td className="px-3 py-1.5 font-mono text-xs">{p.purchase_number || p.purchase_id}</td>
+                  <td className="px-3 py-1.5">{p.supplier_name || p.supplier_code || '—'}</td>
+                  <td className="px-3 py-1.5 text-slate-600">{fmtDate(p.date)}</td>
+                  <td className="px-3 py-1.5 text-slate-500">{p.invoice_number || '—'}</td>
+                  <td className="px-3 py-1.5 text-slate-500">{p.warehouse_name || p.warehouse_code || '—'}</td>
+                  <td className="px-3 py-1.5"><span className={`text-xs rounded px-1.5 py-0.5 ${b.cls}`}>{b.label}</span></td>
+                  <td className="px-3 py-1.5 text-right">{fmtSum(p.total)}</td>
+                  <td className="px-3 py-1.5 text-right">{p.lines ?? 0} ta</td>
+                </tr>
+                {isOpen && <ReceiptItems items={p.items} colSpan={9} />}
+              </Fragment>
             )
           })}
         </tbody>
@@ -541,27 +603,43 @@ function StocktakingsTable({ q }: { q: any }) {
 
 function InputsTable({ q }: { q: any }) {
   const rows = (q.data as any)?.inputs ?? []
+  const [open, setOpen] = useState<Record<number, boolean>>({})
   if (!rows.length) return <Empty loading={q.isLoading} text="Smartup kirimlari yo'q" />
   return (
     <div className="border border-slate-200 rounded-lg overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-slate-50 text-slate-500 text-xs">
           <tr>
+            <th className="w-8 px-2 py-2"></th>
             <th className="text-left px-3 py-2">Kirim №</th>
             <th className="text-left px-3 py-2">Sana</th>
             <th className="text-left px-3 py-2">Sklad</th>
+            <th className="text-left px-3 py-2">Holati</th>
+            <th className="text-right px-3 py-2">Summa</th>
             <th className="text-right px-3 py-2">Qatorlar</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((inp: any, i: number) => (
-            <tr key={i} className="border-t border-slate-100">
-              <td className="px-3 py-1.5 font-mono text-xs">{inp.input_number || inp.input_id}</td>
-              <td className="px-3 py-1.5">{inp.input_time || '—'}</td>
-              <td className="px-3 py-1.5">{inp.warehouse_code || '—'}</td>
-              <td className="px-3 py-1.5 text-right">{inp.input_items?.length ?? 0}</td>
-            </tr>
-          ))}
+          {rows.map((inp: any, i: number) => {
+            const isOpen = !!open[i]
+            return (
+              <Fragment key={i}>
+                <tr className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer"
+                  onClick={() => setOpen(o => ({ ...o, [i]: !o[i] }))}>
+                  <td className="px-2 py-1.5 text-slate-400">
+                    {(inp.items?.length ?? 0) > 0 && (isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+                  </td>
+                  <td className="px-3 py-1.5 font-mono text-xs">{inp.input_number || inp.input_id}</td>
+                  <td className="px-3 py-1.5">{fmtDate(inp.date)}</td>
+                  <td className="px-3 py-1.5">{inp.warehouse_name || inp.warehouse_code || '—'}</td>
+                  <td className="px-3 py-1.5"><span className="text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">{inp.status_code || '—'}</span></td>
+                  <td className="px-3 py-1.5 text-right">{fmtSum(inp.total)}</td>
+                  <td className="px-3 py-1.5 text-right">{inp.lines ?? 0} ta</td>
+                </tr>
+                {isOpen && <ReceiptItems items={inp.items} colSpan={7} />}
+              </Fragment>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -609,6 +687,7 @@ function ReconTable({ q }: { q: any }) {
           <thead className="bg-slate-50 text-slate-500 text-xs">
             <tr>
               <th className="text-left px-3 py-2">Mahsulot kodi</th>
+              <th className="text-left px-3 py-2">Nomi</th>
               <th className="text-right px-3 py-2">WMS</th>
               <th className="text-right px-3 py-2">Smartup</th>
               <th className="text-right px-3 py-2">Farq</th>
@@ -621,6 +700,7 @@ function ReconTable({ q }: { q: any }) {
               return (
                 <tr key={i} className="border-t border-slate-100">
                   <td className="px-3 py-1.5 font-mono text-xs">{ln.product_code ?? '—'}</td>
+                  <td className="px-3 py-1.5">{ln.product_name ?? '—'}</td>
                   <td className="px-3 py-1.5 text-right">{ln.wms_qty}</td>
                   <td className="px-3 py-1.5 text-right">{ln.smartup_qty ?? '—'}</td>
                   <td className={`px-3 py-1.5 text-right font-medium ${ln.diff === 0 ? 'text-slate-400' : ln.diff > 0 ? 'text-amber-600' : 'text-purple-600'}`}>{ln.diff > 0 ? `+${ln.diff}` : ln.diff}</td>
@@ -629,7 +709,7 @@ function ReconTable({ q }: { q: any }) {
               )
             })}
             {!rows.length && (
-              <tr><td colSpan={5}><Empty loading={q.isLoading} text="Ma'lumot yo'q" /></td></tr>
+              <tr><td colSpan={6}><Empty loading={q.isLoading} text="Ma'lumot yo'q" /></td></tr>
             )}
           </tbody>
         </table>

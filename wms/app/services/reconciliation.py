@@ -101,10 +101,21 @@ async def _wms_onhand_by_product_batch(
     }
 
 
+def _product_name(prod) -> str | None:
+    """WMS Product.name (dict {uz, ru}) → ko'rsatish uchun bitta string."""
+    if prod is None:
+        return None
+    n = prod.name
+    if isinstance(n, dict):
+        return n.get("uz") or n.get("ru") or next(iter(n.values()), None)
+    return n or None
+
+
 async def _smartup_balance_by_code(
     smartup_client,
     *,
     warehouse_code: str,
+    names: dict[str, str] | None = None,
 ) -> dict[str, int]:
     """Fetch Smartup inventory balance and key it by product code.
 
@@ -140,6 +151,10 @@ async def _smartup_balance_by_code(
         except (TypeError, ValueError):
             qty = 0
         balance[code] = balance.get(code, 0) + qty
+        if names is not None and code not in names:
+            nm = item.get("product_name") or item.get("product_unit_name")
+            if nm:
+                names[code] = str(nm)
     return balance
 
 
@@ -198,6 +213,7 @@ async def run_reconciliation(
 
     # ── 2. Smartup balance (optional) ────────────────────────────────────────
     smartup_by_code: dict[str, int] = {}
+    smartup_name_by_code: dict[str, str] = {}
     have_erp = False
     erp_error: str | None = None
 
@@ -208,7 +224,8 @@ async def run_reconciliation(
         if smartup_warehouse_code:
             try:
                 smartup_by_code = await _smartup_balance_by_code(
-                    smartup_client, warehouse_code=smartup_warehouse_code
+                    smartup_client, warehouse_code=smartup_warehouse_code,
+                    names=smartup_name_by_code,
                 )
                 have_erp = True
             except Exception as exc:  # network/ERP failure -> degrade gracefully
@@ -254,6 +271,7 @@ async def run_reconciliation(
         lines.append({
             "product_id": str(prod_id) if prod_id else None,
             "product_code": code or None,
+            "product_name": _product_name(prod) or (smartup_name_by_code.get(code) if code else None),
             "batch": batch_label,
             "wms_qty": wms_qty,
             "smartup_qty": line_erp_qty if (have_erp and code) else None,
@@ -285,6 +303,7 @@ async def run_reconciliation(
             lines.append({
                 "product_id": str(p.id) if p else None,
                 "product_code": code,
+                "product_name": _product_name(p) or smartup_name_by_code.get(code),
                 "batch": None,
                 "wms_qty": 0,
                 "smartup_qty": erp_qty,

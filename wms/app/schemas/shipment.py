@@ -58,9 +58,15 @@ class PickStop(BaseModel):
     location_id: uuid.UUID
     location_code: str
     product_id: uuid.UUID
+    product_code: str | None = None
+    product_name: str | None = None
     take_qty: int
     marking_codes: list[str]
     is_partial_pallet: bool
+    # FEFO/FIFO manba ma'lumotlari (Asl Belgisidan kelgan partiya) — yig'uvchiga ko'rsatiladi.
+    lot_number: str | None = None
+    production_date: str | None = None
+    expiry_date: str | None = None
 
 
 class ValidationIssue(BaseModel):
