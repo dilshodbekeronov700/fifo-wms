@@ -99,3 +99,62 @@ html, body, #root {
   --color-slate-800: #1e293b;
   --color-slate-900: #0f172a;
 }
+
+/*
+ * ─── Premium atmosfera (wow) ─────────────────────────────────────────────────
+ * Yumshoq "aurora" gradient fon — asosiy sohaga chuqurlik beradi. Yassi kulrang
+ * o'rniga nozik rangli yorug'lik. Ikkala temada ishlaydi.
+ */
+main {
+  position: relative;
+  background:
+    radial-gradient(1100px 520px at 12% -8%, rgba(59,130,246,.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(139,92,246,.09), transparent 55%),
+    radial-gradient(800px 600px at 85% 110%, rgba(16,185,129,.07), transparent 55%);
+}
+.dark main {
+  background:
+    radial-gradient(1100px 520px at 12% -8%, rgba(59,130,246,.16), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(139,92,246,.14), transparent 55%),
+    radial-gradient(800px 600px at 85% 110%, rgba(16,185,129,.10), transparent 55%);
+}
+
+@layer utilities {
+  /* Shisha (glass) sirt — nozik shaffoflik + blur + ichki yorug'lik chizig'i */
+  .glass {
+    background: color-mix(in oklab, var(--color-white) 82%, transparent);
+    backdrop-filter: blur(12px) saturate(1.1);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  }
+  .dark .glass {
+    background: color-mix(in oklab, var(--color-white) 70%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.3), 0 12px 30px rgba(0,0,0,.35);
+  }
+  /* Gradient matn (sarlavhalar uchun) */
+  .text-gradient {
+    background: linear-gradient(120deg, #2563eb, #7c3aed 55%, #0ea5e9);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  /* KPI karta yuqori aksent chizig'i + hover porlash */
+  .stat-card { position: relative; isolation: isolate; }
+  .stat-card::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; border-radius: 16px 16px 0 0;
+    background: linear-gradient(90deg, var(--sc-a, #3b82f6), var(--sc-b, #6366f1));
+    opacity: .9;
+  }
+  .stat-card::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 16px; z-index: -1;
+    background: radial-gradient(120px 80px at 85% 0%, var(--sc-glow, rgba(59,130,246,.25)), transparent 70%);
+    opacity: 0; transition: opacity .35s ease;
+  }
+  .stat-card:hover::after { opacity: 1; }
+  /* Jonli porlash (pulse ring) */
+  @keyframes sheen { from { transform: translateX(-120%); } to { transform: translateX(220%); } }
+  .sheen-on-hover { position: relative; overflow: hidden; }
+  .sheen-on-hover::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    transform: translateX(-120%); pointer-events: none;
+  }
+  .sheen-on-hover:hover::after { animation: sheen 1s ease; }
+}

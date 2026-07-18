@@ -11,8 +11,9 @@ export function Card({ hover, padded = true, className, children, ...rest }: Car
   return (
     <div
       className={cn(
-        'bg-white rounded-2xl border border-slate-200/70 shadow-card',
-        hover && 'transition-shadow hover:shadow-card-hover',
+        'bg-white rounded-2xl border border-slate-200/60 shadow-card',
+        'ring-1 ring-white/40 dark:ring-white/5',
+        hover && 'transition-all duration-300 hover:shadow-card-hover hover:-translate-y-0.5',
         padded && 'p-5',
         className,
       )}
