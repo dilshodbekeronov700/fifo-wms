@@ -42,6 +42,17 @@ const fmtSum = (v: number | null | undefined) =>
 // "25.06.2026 16:24:54" → "25.06.2026" (vaqtni olib tashlaymiz)
 const fmtDate = (v: string | null | undefined) => (v ? v.split(' ')[0] : '—')
 
+// Backend xato xabarini XAVFSIZ stringga aylantiradi. FastAPI `detail` string,
+// obyekt yoki massiv (422 validatsiya) bo'lishi mumkin — to'g'ridan-to'g'ri
+// `.replace()` yoki JSX' da render qilish sahifani yiqitadi (oq ekran).
+const errText = (e: any): string => {
+  const d = e?.response?.data?.detail
+  if (typeof d === 'string') return d.replace(/^Smartup:\s*/, '')
+  if (Array.isArray(d)) return d.map((x: any) => x?.msg || JSON.stringify(x)).join('; ')
+  if (d && typeof d === 'object') return d.message || d.detail || JSON.stringify(d)
+  return e?.message || ''
+}
+
 export default function Smartup() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('orders')
@@ -100,7 +111,7 @@ export default function Smartup() {
       qc.invalidateQueries({ queryKey: ['integration-status'] })
       toast.success('Smartup ma\'lumotlari yangilandi')
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? 'Yangilashda xatolik')
+      toast.error(errText(e) || 'Yangilashda xatolik')
     } finally { setPulling(false) }
   }
 
@@ -160,7 +171,7 @@ export default function Smartup() {
             <div className="text-sm">
               <span className="text-amber-600 font-medium">Tashkilot aniqlanmadi.</span>
               <span className="text-slate-500"> Smartup xatosi: </span>
-              <span className="text-slate-700">{(currentOrg.error as any)?.response?.data?.detail?.replace(/^Smartup:\s*/, '') || "Sozlamalar > Integratsiya'da filial_id/filial_code'ni tekshiring."}</span>
+              <span className="text-slate-700">{errText(currentOrg.error) || "Smartup vaqtincha ishlamayapti yoki Sozlamalar > Integratsiya'da filial_id/filial_code'ni tekshiring."}</span>
             </div>
           )}
         </div>
@@ -261,7 +272,7 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
       toast.success(`Smartup'ga yuborildi: ${lbl}`)
       onChanged?.()
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? 'Yuborishda xatolik')
+      toast.error(errText(e) || 'Yuborishda xatolik')
     }
   }
   return (
