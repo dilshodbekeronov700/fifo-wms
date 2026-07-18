@@ -89,8 +89,8 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
     renderer.toneMappingExposure = 1.05
     mount.appendChild(renderer.domElement)
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa6b8, 0.85))
-    scene.add(new THREE.AmbientLight(0xffffff, 0.25))
+    scene.add(new THREE.HemisphereLight(0xbcd0e6, 0x6b7688, 0.55))
+    scene.add(new THREE.AmbientLight(0xffffff, 0.18))
     const dir = new THREE.DirectionalLight(0xffffff, 1.15)
     dir.position.set(40, 80, 30)
     dir.castShadow = true
@@ -221,7 +221,12 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
       const postGeo = new THREE.BoxGeometry(1, 1, 1)
       const beamGeo = new THREE.BoxGeometry(1, 1, 1)
       const woodMat = new THREE.MeshStandardMaterial({ color: 0x9a6b3f, roughness: 0.95 })
-      const loadMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 })
+      // Shrink-wrap qilingan tiniq suv butilkalari — yaltiroq (past roughness),
+      // ozgina shaffof plastik plyonka. Instance rangi tepada beriladi.
+      const loadMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, roughness: 0.18, metalness: 0.0,
+        transparent: true, opacity: 0.92,
+      })
       const postMat = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.42, metalness: 0.55 })
       const beamMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.5, metalness: 0.45 })
       geoDisposables.push(palletGeo, loadGeo, postGeo, beamGeo)
@@ -236,7 +241,8 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
       const beamMesh = new THREE.InstancedMesh(beamGeo, beamMat, Math.max(1, nBeams)); beamMesh.castShadow = true
 
       const dummy = new THREE.Object3D()
-      const tan = new THREE.Color(0xd8c4a0)
+      const water = new THREE.Color(0xbfe0f5)   // shrink-wrap suv rangi
+      const icy = new THREE.Color(0xd7ecf9)     // ogohlantirish holatlarига aralashadi
       const hidden = new THREE.Matrix4().makeScale(0, 0, 0)
       const miniRacks: MiniRack[] = []
 
@@ -268,7 +274,11 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
             slotMatrix.push(dummy.matrix.clone())
             if (status === 'empty') loadMesh.setMatrixAt(si, hidden)
             else loadMesh.setMatrixAt(si, dummy.matrix)
-            const sc = new THREE.Color().setHex(STATE_COLOR[status] ?? STATE_COLOR.empty).lerp(tan, 0.45)
+            // Band = tiniq suv (haqiqiy sklad kabi); qisman/blok = ogohlantirish rangi
+            // (icy blue bilan aralashib, plastik plyonka tusini beradi).
+            const sc = status === 'occupied'
+              ? water.clone()
+              : new THREE.Color().setHex(STATE_COLOR[status] ?? STATE_COLOR.empty).lerp(icy, 0.5)
             loadMesh.setColorAt(si, sc)
             statusColor.push(sc.clone())
             heatColor.push(new THREE.Color())
@@ -304,6 +314,38 @@ export default function Warehouse3D({ warehouseId }: { warehouseId: string }) {
       postMesh.instanceMatrix.needsUpdate = true
       beamMesh.instanceMatrix.needsUpdate = true
       root.add(palletMesh, loadMesh, postMesh, beamMesh)
+
+      // ── Po'lat farma shift + high-bay chiroqlar (haqiqiy zavod kabi) ──────────
+      const ceilY = Math.max(TH * 3, ...racks.map(r => r.maxT * TH + BASE_Y)) + 3.2
+      // Shift paneli (metall, soya qabul qilmaydi — faqat fon)
+      const ceilGeo = new THREE.PlaneGeometry(extentX + 24, extentZ + 24)
+      // FrontSide: normal pastga qaraydi → walk rejimида (pastdan) ko'rinadi,
+      // orbit (yuqoridan) esa backface culling bilan ko'rmaydi → rack'lar ochiq.
+      const ceilMat = new THREE.MeshStandardMaterial({ color: 0x33404f, roughness: 0.9, side: THREE.FrontSide })
+      const ceil = new THREE.Mesh(ceilGeo, ceilMat)
+      ceil.rotation.x = Math.PI / 2
+      ceil.position.set(extentX / 2, ceilY + 0.6, extentZ / 2)
+      root.add(ceil); geoDisposables.push(ceilGeo); matDisposables.push(ceilMat)
+      // High-bay chiroqlar: grid bo'ylab, har biri emissiv disk + PointLight
+      const lampGeo = new THREE.CylinderGeometry(0.45, 0.6, 0.35, 20)
+      const lampMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: 0xdff0ff, emissiveIntensity: 2.4, roughness: 0.4,
+      })
+      geoDisposables.push(lampGeo); matDisposables.push(lampMat)
+      const cols = Math.max(2, Math.round(extentX / 12))
+      const rows = Math.max(1, Math.round(extentZ / 8))
+      for (let cxi = 0; cxi < cols; cxi++) {
+        for (let czi = 0; czi < rows; czi++) {
+          const lx = (extentX * (cxi + 0.5)) / cols
+          const lz = (extentZ * (czi + 0.5)) / rows
+          const lamp = new THREE.Mesh(lampGeo, lampMat)
+          lamp.position.set(lx, ceilY, lz)
+          root.add(lamp)
+          const pl = new THREE.PointLight(0xeaf4ff, 26, 26, 2.0)
+          pl.position.set(lx, ceilY - 0.4, lz)
+          root.add(pl)
+        }
+      }
 
       // Heatmap ranglari (yashil=bo'sh → qizil=band, holatga qarab)
       for (let i = 0; i < statusColor.length; i++) {
