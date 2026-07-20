@@ -14,6 +14,7 @@ import {
   getWarehouses, getZones, getAllLocations,
   updateLocationById, deleteLocationById, generateRack, setRackCells,
   bulkCreateLocations, getReservations, getLocationContents, fetchLocationCodeTree,
+  getProductByGtin,
 } from '../lib/api'
 import {
   Box, LayoutGrid, List, Layers, Pencil, Plus, Trash2, Save, X, Wand2,
@@ -494,6 +495,13 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
     queryFn: () => getLocationContents(locId),
     enabled: !!locId, retry: false,
   })
+  // GTIN bo'yicha mahsulot kartochkasi (kod daraxti yoki qoldiqdan GTIN)
+  const gtin: string | null = data?.code_tree?.[0]?.gtin || data?.stock?.[0]?.gtin || null
+  const { data: prodCard } = useQuery({
+    queryKey: ['prod-card', gtin],
+    queryFn: () => getProductByGtin(gtin as string),
+    enabled: !!gtin, retry: false,
+  })
 
   const loadTree = async () => {
     setFetchingTree(true)
@@ -505,81 +513,105 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
       toast.error(e?.response?.data?.detail ?? 'Asl Belgisi\'dan yuklab bo\'lmadi')
     } finally { setFetchingTree(false) }
   }
+  const selCode = orderedSlots.find(s => s.id === locId)?.code ?? '—'
+  const codeCount = (function count(nodes: any[]): number {
+    return (nodes || []).reduce((n, x) => n + 1 + count(x.children || []), 0)
+  })(data?.code_tree || [])
   return (
-    <div className="w-80 shrink-0 bg-white rounded-xl border border-slate-200 p-4 space-y-3 self-start max-h-[75vh] overflow-auto">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
-          <Boxes size={15} className="text-blue-500" /> {cell.code}
-        </h3>
-        <button onClick={onClose}><X size={16} className="text-slate-400" /></button>
-      </div>
-      <div className="text-xs text-slate-400">{cell.wname} · {cell.slots.length} yacheyka · {cell.rack_group ?? ''}</div>
-
-      {/* Yacheykalar — tanlab ko'rish (band = yashil) */}
-      <div className="flex flex-wrap gap-1">
-        {orderedSlots.map(s => {
-          const occ = s.status === 'occupied'
-          const sel = s.id === locId
-          return (
-            <button key={s.id} onClick={() => setSelId(s.id)}
-              title={`${s.code}${occ ? ' · band' : " · bo'sh"}`}
-              className={`text-xs font-mono rounded-md px-2 py-1 border transition ${
-                sel ? 'border-blue-500 bg-blue-500/10 text-blue-700'
-                : occ ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-              {s.code.split('-').pop()}{occ ? ' ●' : ''}
-            </button>
-          )
-        })}
-      </div>
-      <div className="text-[11px] text-slate-400 -mt-1">Tanlangan: <b className="font-mono text-slate-600">{orderedSlots.find(s => s.id === locId)?.code ?? '—'}</b></div>
-
-      {isLoading && <div className="text-sm text-slate-400 py-4">Yuklanmoqda…</div>}
-      {isError && <div className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">Ma'lumot yuklanmadi — backend yangilanmagan bo'lishi mumkin (qayta ishga tushiring).</div>}
-      {data && (
-        <>
-          {/* Stock lines */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
           <div>
-            <div className="text-xs font-semibold text-slate-500 mb-1">Qoldiq</div>
-            {data.stock?.length ? data.stock.map((s: any, i: number) => (
-              <div key={i} className="text-xs bg-slate-50 rounded-lg px-2 py-1.5 mb-1">
-                <div className="font-medium text-slate-700">{nameOf(s.product_name)}</div>
-                <div className="text-slate-500">{s.qty} dona · {STATUS_LABEL[s.status] ?? s.status}
-                  {s.expiry_date ? ` · muddat ${s.expiry_date}` : ''}{s.pallet_open ? ' · ochiq pallet' : ''}</div>
+            <h3 className="font-semibold text-slate-800 text-base flex items-center gap-2">
+              <Boxes size={18} className="text-blue-500" /> {cell.code}
+            </h3>
+            <div className="text-xs text-slate-400">{cell.wname} · {cell.slots.length} yacheyka · Tanlangan: <b className="font-mono text-slate-600">{selCode}</b></div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+
+        {/* Yacheyka chiplari */}
+        <div className="px-5 py-2 border-b border-slate-100 flex flex-wrap gap-1">
+          {orderedSlots.map(s => {
+            const occ = s.status === 'occupied'; const sel = s.id === locId
+            return (
+              <button key={s.id} onClick={() => setSelId(s.id)} title={`${s.code}${occ ? ' · band' : " · bo'sh"}`}
+                className={`text-xs font-mono rounded-md px-2.5 py-1 border transition ${
+                  sel ? 'border-blue-500 bg-blue-500/10 text-blue-700 font-semibold'
+                  : occ ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                {s.code.split('-').pop()}{occ ? ' ●' : ''}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex-1 overflow-auto grid md:grid-cols-2 gap-0">
+          {/* CHAP: mahsulot kartochkasi + qoldiq + bron */}
+          <div className="p-5 space-y-4 border-r border-slate-100">
+            {isLoading && <div className="text-sm text-slate-400 py-4">Yuklanmoqda…</div>}
+            {isError && <div className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">Ma'lumot yuklanmadi.</div>}
+
+            {/* Mahsulot kartochkasi (GTIN bo'yicha) */}
+            {(prodCard || gtin) && (
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-3 py-1.5 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wide">Mahsulot kartochkasi</div>
+                <div className="p-3 space-y-1.5">
+                  <div className="font-semibold text-slate-800 text-sm">{nameOf(prodCard?.name) !== '—' ? nameOf(prodCard?.name) : nameOf(data?.stock?.[0]?.product_name)}</div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <Info k="GTIN" v={gtin} mono />
+                    <Info k="Smartup kod" v={prodCard?.smartup_product_code} mono />
+                    <Info k="O'lchov" v={prodCard?.uom} />
+                    <Info k="Box ichida" v={prodCard?.units_per_box} />
+                    <Info k="Kategoriya" v={prodCard?.category} />
+                    <Info k="ABC" v={prodCard?.abc_class} />
+                  </div>
+                </div>
               </div>
-            )) : <div className="text-xs text-slate-400">Bo'sh</div>}
+            )}
+
+            {/* Qoldiq */}
+            <div>
+              <div className="text-xs font-semibold text-slate-500 mb-1">Qoldiq</div>
+              {data?.stock?.length ? data.stock.map((s: any, i: number) => (
+                <div key={i} className="text-xs bg-slate-50 rounded-lg px-2.5 py-2 mb-1">
+                  <div className="font-medium text-slate-700">{nameOf(s.product_name)}</div>
+                  <div className="text-slate-500">{s.qty} dona · {STATUS_LABEL[s.status] ?? s.status}
+                    {s.batch ? ` · partiya ${s.batch}` : ''}{s.expiry_date ? ` · muddat ${s.expiry_date}` : ''}{s.pallet_open ? ' · ochiq pallet' : ''}</div>
+                </div>
+              )) : <div className="text-xs text-slate-400">Bo'sh</div>}
+            </div>
+
+            {/* Bron */}
+            {data?.reservations?.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-violet-600 mb-1 flex items-center gap-1"><Clock size={12} /> Bron</div>
+                {data.reservations.map((r: any) => (
+                  <div key={r.id} className="text-xs bg-violet-50 rounded-lg px-2 py-1.5 mb-1 font-mono break-all">{r.code} · {r.qty} box{r.manual ? ' · qo\'lda' : ''}</div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Reservations */}
-          {data.reservations?.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold text-violet-600 mb-1 flex items-center gap-1"><Clock size={12} /> Bron</div>
-              {data.reservations.map((r: any) => (
-                <div key={r.id} className="text-xs bg-violet-50 rounded-lg px-2 py-1.5 mb-1 font-mono break-all">
-                  {r.code} · {r.qty} box{r.manual ? ' · qo\'lda' : ''}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Code aggregation tree (Asl Belgisi) */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-xs font-semibold text-slate-500">Kodlar daraxti (Asl Belgisi)</div>
-              {(data.stock?.length > 0 || data.code_tree?.length > 0 || data.reservations?.length > 0) && (
+          {/* O'NG: to'liq kod daraxti */}
+          <div className="p-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold text-slate-500">Kodlar daraxti (Asl Belgisi) {codeCount > 0 && <span className="text-slate-400">· {codeCount} kod</span>}</div>
+              {(data?.stock?.length > 0 || data?.code_tree?.length > 0 || data?.reservations?.length > 0) && (
                 <button onClick={loadTree} disabled={fetchingTree}
                   className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 disabled:opacity-50"
-                  title="Kod (unit/box/transport) daraxtini Asl Belgisi'dan yuklash — tepaga (root) + pastga (ichki kodlar)">
+                  title="Kod daraxtini Asl Belgisi'dan yuklash (tepa+past) + to'liq maydonlar">
                   <Download size={12} className={fetchingTree ? 'animate-pulse' : ''} />
                   {fetchingTree ? 'Yuklanmoqda…' : 'Yuklash'}
                 </button>
               )}
             </div>
-            {data.code_tree?.length ? data.code_tree.map((n: any) => <CodeNode key={n.code} node={n} depth={0} />)
-              : <div className="text-xs text-slate-400">Kod biriktirilmagan — kod qo'yilgach "Yuklash" bilan daraxtni torting (tepa+past)</div>}
+            {data?.code_tree?.length ? data.code_tree.map((n: any) => <CodeNode key={n.code} node={n} depth={0} />)
+              : <div className="text-xs text-slate-400">Kod biriktirilmagan — kod qo'yilgach "Yuklash" bilan daraxtni torting.</div>}
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -595,10 +627,12 @@ function CodeNode({ node, depth }: { node: any; depth: number }) {
         <span className="px-1 rounded bg-slate-100 text-slate-500">{node.package_type}</span>
         <span className="text-slate-700 break-all">{node.code.length > 24 ? node.code.slice(0, 24) + '…' : node.code}</span>
       </div>
-      {/* 9.2 to'liq ma'lumot — GTIN / muddat / partiya */}
-      {(node.gtin || node.expiry_date || node.batch_number) && (
+      {/* 9.2 to'liq ma'lumot — GTIN / status / i.ch. / muddat / partiya */}
+      {(node.gtin || node.status || node.production_date || node.expiry_date || node.batch_number) && (
         <div className="text-[10px] text-slate-400 pl-4 flex flex-wrap gap-x-2">
           {node.gtin && <span>GTIN {node.gtin}</span>}
+          {node.status && <span className="text-slate-500">{node.status}</span>}
+          {node.production_date && <span>i.ch. {String(node.production_date).slice(0, 10)}</span>}
           {node.expiry_date && <span className="text-amber-600">muddat {String(node.expiry_date).slice(0, 10)}</span>}
           {node.batch_number && <span>partiya {node.batch_number}</span>}
         </div>
@@ -612,6 +646,15 @@ function nameOf(n: any): string {
   if (!n) return '—'
   if (typeof n === 'string') return n
   return n.uz || n.ru || n.en || '—'
+}
+
+function Info({ k, v, mono }: { k: string; v: any; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] text-slate-400 leading-3">{k}</div>
+      <div className={`text-slate-700 truncate ${mono ? 'font-mono text-[11px]' : ''}`}>{v != null && v !== '' ? String(v) : '—'}</div>
+    </div>
+  )
 }
 
 // ─── Edit panel ──────────────────────────────────────────────────────────────
