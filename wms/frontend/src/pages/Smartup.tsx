@@ -61,6 +61,15 @@ export default function Smartup() {
   const [showAll, setShowAll] = useState(false)  // false = ochiq buyurtmalar, true = barchasi
   const [orderSearch, setOrderSearch] = useState('')
   const [orderStatus, setOrderStatus] = useState('')
+  const [kirimDays, setKirimDays] = useState(30)  // Kirim sana oynasi (Smartup API ≤30 kun)
+
+  // Kirim oynasi (dd.mm.yyyy) — input$/purchase$export begin/end_modified_on.
+  const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+  const kirimWindow = (() => {
+    const end = new Date(); const begin = new Date()
+    begin.setDate(begin.getDate() - (kirimDays - 1))
+    return { begin: dmy(begin), end: dmy(end) }
+  })()
 
   const { data: warehouses = [] } = useQuery({ queryKey: ['warehouses'], queryFn: getWarehouses })
   const wid = whId || (warehouses as any[])[0]?.id
@@ -73,11 +82,11 @@ export default function Smartup() {
     enabled: !!wid,
   })
   const inputs = useQuery({
-    queryKey: ['su-inputs', wid], queryFn: () => getProductionInputs(wid),
+    queryKey: ['su-inputs', wid, kirimDays], queryFn: () => getProductionInputs(wid, kirimWindow.begin, kirimWindow.end),
     enabled: !!wid,
   })
   const purchases = useQuery({
-    queryKey: ['su-purchases', wid], queryFn: () => getPurchases(wid),
+    queryKey: ['su-purchases', wid, kirimDays], queryFn: () => getPurchases(wid, kirimWindow.begin, kirimWindow.end),
     enabled: !!wid,
   })
   const movements = useQuery({
@@ -243,6 +252,18 @@ export default function Smartup() {
       })()}
       {tab === 'inputs' && (
         <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 w-fit text-sm">
+              {[{ d: 7, l: '7 kun' }, { d: 30, l: '30 kun' }].map(o => (
+                <button key={o.d} onClick={() => setKirimDays(o.d)}
+                  className={`px-3 py-1 rounded-md transition ${kirimDays === o.d ? 'bg-white shadow-sm text-slate-800 font-medium' : 'text-slate-500'}`}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-400">{kirimWindow.begin} — {kirimWindow.end}</span>
+            <span className="text-xs text-slate-400">· Smartup API oynasi maks. 30 kun (tarixiy ma'lumot uchun davrni tanlang)</span>
+          </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-2">Ta'minotchidan xaridlar</h3>
             <PurchasesTable q={purchases} />

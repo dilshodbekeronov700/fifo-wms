@@ -126,10 +126,10 @@ export const getZoneSummary = (warehouse_id: string, days = 30) =>
   api.get('/analytics/zone-summary', { params: { warehouse_id, days } }).then(r => r.data)
 
 // ── Receipt ──────────────────────────────────────────────────────────────────
-export const getProductionInputs = (warehouse_id: string) =>
-  api.get('/receipt/production-inputs', { params: { warehouse_id } }).then(r => r.data)
-export const getPurchases = (warehouse_id: string) =>
-  api.get('/receipt/purchases', { params: { warehouse_id } }).then(r => r.data)
+export const getProductionInputs = (warehouse_id: string, begin_modified_on?: string, end_modified_on?: string) =>
+  api.get('/receipt/production-inputs', { params: { warehouse_id, begin_modified_on, end_modified_on } }).then(r => r.data)
+export const getPurchases = (warehouse_id: string, begin_modified_on?: string, end_modified_on?: string) =>
+  api.get('/receipt/purchases', { params: { warehouse_id, begin_modified_on, end_modified_on } }).then(r => r.data)
 export const createReceipt = (d: any) => api.post('/receipt', d).then(r => r.data)
 export const getReceipt = (id: string) => api.get(`/receipt/${id}`).then(r => r.data)
 export const getDocuments = (warehouse_id: string, doc_type?: string) =>

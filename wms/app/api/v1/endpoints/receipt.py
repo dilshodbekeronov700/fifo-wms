@@ -81,9 +81,10 @@ async def production_inputs(
     db: DB,
     warehouse_id: uuid.UUID = ...,
     begin_modified_on: str | None = None,
+    end_modified_on: str | None = None,
 ):
     """Read production receipts from Smartup (mkw/input$export) for reconciliation
-    against the physical TSD scan (TZ §16 q1)."""
+    against the physical TSD scan (TZ §16 q1). API oynasi: ≤30 kun."""
     if user.tenant_id is None:
         raise HTTPException(status_code=400, detail="Tenant context required")
     wh = await ensure_warehouse_access(db, user, warehouse_id)
@@ -91,7 +92,8 @@ async def production_inputs(
     client = await get_smartup_client(db, user.tenant_id)
     codes = doc_svc.warehouse_filter(wh.smartup_warehouse_code)
     rows = await client.get_inputs(
-        warehouse_codes=codes, begin_modified_on=begin_modified_on
+        warehouse_codes=codes, begin_modified_on=begin_modified_on,
+        end_modified_on=end_modified_on,
     )
     inputs_out = []
     for p in rows:
@@ -121,9 +123,10 @@ async def purchases(
     db: DB,
     warehouse_id: uuid.UUID = ...,
     begin_modified_on: str | None = None,
+    end_modified_on: str | None = None,
 ):
     """Smartup'dan TA'MINOTCHIDAN XARIDLAR (mkw/purchase$export) — distributor uchun
-    asosiy kirim oqimi (zavod input$export emas). Kutilayotgan/qabul kirimlar snapshot'i."""
+    asosiy kirim oqimi (zavod input$export emas). API oynasi: ≤30 kun."""
     if user.tenant_id is None:
         raise HTTPException(status_code=400, detail="Tenant context required")
     wh = await ensure_warehouse_access(db, user, warehouse_id)
@@ -131,7 +134,8 @@ async def purchases(
     client = await get_smartup_client(db, user.tenant_id)
     codes = doc_svc.warehouse_filter(wh.smartup_warehouse_code)
     rows = await client.get_purchases(
-        warehouse_codes=codes, begin_modified_on=begin_modified_on
+        warehouse_codes=codes, begin_modified_on=begin_modified_on,
+        end_modified_on=end_modified_on,
     )
     purchases_out = []
     for p in rows:
