@@ -47,12 +47,17 @@ async def list_products(user: ActiveUser, db: DB, include_inactive: bool = False
     dependencies=[require_permission("product", "update")],
 )
 async def reconcile_smartup(user: ActiveUser, db: DB):
-    """Asl Belgisi (GTIN) ↔ Smartup (code) avto-bog'lash + dedupe.
+    """Asl Belgisi (GTIN) ↔ Smartup (code) avto-bog'lash + konsolidatsiya.
 
-    WMS'da seed'dan kelgan mahsulot GTIN'i bor, kodsiz; Smartup sync'idan kelgan
-    esa kod'li, gtinsiz. Smartup inventory (gtin/barcodes) orqali mos kelganlarni
-    BITTA mahsulotga birlashtiramiz (gtin+kod), ortiqcha (reference'siz) dublikatni
-    o'chiramiz. Mos kelmaganlar /products'da qo'lda bog'lanadi ("mapping yo'q" filtri).
+    Kalit — 12-raqamli tovar-negizi (EAN-13 check-raqamsiz). UNIT GTIN = `0`+EAN,
+    GROUP GTIN = 14-raqam (birinchi raqam qadoq indikatori). Smartup `_N` — bir xil
+    mahsulotning maxsus savdo-marka variantlari; buyurtma resolver'i `_N`ни bazaga
+    qaytaradi, shuning uchun WMS mahsulotni Smartup BAZA kodiga bog'lash yetarli.
+
+    Har negiz-oila uchun BITTA primary (reference bor > gtin bor > birinchi) qoldiramiz:
+    unga baza kod + gtin beramiz; qolgan ortiqcha (reference'siz) variantlarni NOFAOL
+    qilamiz (o'chirmaydi — qaytariladigan). Negizi Smartup'da yo'q oilalar tegilmaydi
+    ("mapping yo'q" filtri orqali qo'lda bog'lanadi).
     """
     if user.tenant_id is None:
         raise HTTPException(status_code=400, detail="Tenant context required")
@@ -60,60 +65,62 @@ async def reconcile_smartup(user: ActiveUser, db: DB):
     from app.models.inventory import MarkingCode, StockItem
     from app.models.ledger import LedgerEntry
 
-    def _norm(g) -> str:
-        return str(g or "").strip().lstrip("0")
+    def _ref(n) -> str | None:
+        d = "".join(ch for ch in str(n or "") if ch.isdigit())
+        if len(d) == 14:      # GROUP/UNIT GTIN-14: indikator + ref + check
+            d = d[1:-1]
+        elif len(d) == 13:    # EAN-13: ref + check
+            d = d[:-1]
+        return d if len(d) >= 11 else None
 
     client = await get_smartup_client(db, user.tenant_id)
     inv = await client.get_product_references()
-    gtin2code: dict[str, str] = {}
+    ref2base: dict[str, str] = {}
     for i in inv:
         code = (i.get("code") or "").strip()
-        if not code:
+        base = code.split("_")[0]
+        if not base.isdigit():
             continue
-        cands = [i.get("gtin")]
-        bc = i.get("barcodes")
-        if isinstance(bc, list):
-            cands += [(x.get("barcode") if isinstance(x, dict) else x) for x in bc]
-        elif bc:
-            cands.append(bc)
-        for g in cands:
-            if _norm(g):
-                gtin2code.setdefault(_norm(g), code)
+        r = _ref(base)
+        if r and (r not in ref2base or "_" not in code):
+            ref2base[r] = base
 
     prods = (await db.execute(
         select(Product).where(Product.tenant_id == user.tenant_id)
     )).scalars().all()
-    by_code = {p.smartup_product_code: p for p in prods if p.smartup_product_code}
+    groups: dict[str, list[Product]] = {}
+    for p in prods:
+        r = _ref(p.gtin) if p.gtin else _ref((p.smartup_product_code or "").split("_")[0])
+        if r:
+            groups.setdefault(r, []).append(p)
 
     async def _has_refs(pid: uuid.UUID) -> bool:
         for model in (StockItem, LedgerEntry, MarkingCode, Batch):
-            hit = (await db.execute(
-                select(model.id).where(model.product_id == pid).limit(1)
-            )).first()
-            if hit:
+            if (await db.execute(select(model.id).where(model.product_id == pid).limit(1))).first():
                 return True
         return False
 
-    linked = deleted = skipped = 0
-    for p in prods:
-        if not (p.gtin and not p.smartup_product_code):
+    linked = deactivated = 0
+    for r, base in ref2base.items():
+        grp = groups.get(r)
+        if not grp:
             continue
-        code = gtin2code.get(_norm(p.gtin))
-        if not code:
-            continue
-        twin = by_code.get(code)
-        if twin is not None and twin.id != p.id:
-            # Kod band — dublikatni faqat reference'siz bo'lsa o'chiramiz.
-            if await _has_refs(twin.id):
-                skipped += 1
-                continue
-            await db.delete(twin)
-            by_code.pop(code, None)
-            deleted += 1
-            await db.flush()
-        p.smartup_product_code = code
-        by_code[code] = p
+        refs = {p.id: await _has_refs(p.id) for p in grp}
+        primary = sorted(grp, key=lambda p: (refs[p.id], bool(p.gtin)), reverse=True)[0]
+        # Unique-kod konfliktini oldini olish: avval oiladagi hamma koddan bo'shatamiz.
+        for p in grp:
+            p.smartup_product_code = None
+        await db.flush()
+        primary.smartup_product_code = base
+        if not primary.gtin:
+            primary.gtin = "0" + base
+        primary.is_active = True
         linked += 1
+        for p in grp:
+            if p.id == primary.id or refs[p.id]:
+                continue  # reference bor bo'lsa faol qoldiramiz (kodsiz — qo'lda hal)
+            p.is_active = False
+            deactivated += 1
 
     await db.commit()
     remaining = (await db.execute(
@@ -124,9 +131,8 @@ async def reconcile_smartup(user: ActiveUser, db: DB):
         )
     )).scalar()
     return {
-        "linked": linked, "deleted_duplicates": deleted, "skipped_with_refs": skipped,
-        "remaining_unmapped": remaining,
-        "detail": f"{linked} ta avto-bog'landi, {deleted} dublikat o'chirildi, {remaining} ta qo'lda qoldi",
+        "linked": linked, "deactivated": deactivated, "remaining_unmapped": remaining,
+        "detail": f"{linked} ta oila bog'landi, {deactivated} ortiqcha nofaol qilindi, {remaining} ta qo'lda qoldi",
     }
 
 
