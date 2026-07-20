@@ -115,6 +115,42 @@ async def update_zone(
     return zone
 
 
+@router.delete(
+    "/{warehouse_id}/zones/{zone_id}",
+    status_code=204,
+    dependencies=[require_permission("zone", "delete")],
+)
+async def delete_zone(warehouse_id: uuid.UUID, zone_id: uuid.UUID, user: ActiveUser, db: DB):
+    """Zonani o'chirish. Ichidagi bo'sh yacheykalar ham o'chadi; mahsulot bo'lsa bloklanadi."""
+    from app.models.inventory import StockItem
+    await _get_wh(warehouse_id, user, db)
+    zone = (await db.execute(
+        select(Zone).where(Zone.id == zone_id, Zone.warehouse_id == warehouse_id)
+    )).scalar_one_or_none()
+    if zone is None:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    loc_ids = (await db.execute(
+        select(Location.id).where(Location.zone_id == zone_id)
+    )).scalars().all()
+    if loc_ids:
+        has_stock = (await db.execute(
+            select(StockItem.id).where(
+                StockItem.location_id.in_(loc_ids), StockItem.qty > 0
+            ).limit(1)
+        )).first()
+        if has_stock:
+            raise HTTPException(
+                status_code=409,
+                detail="Zonada mahsulot bor — avval yacheykalarni bo'shating.",
+            )
+        for lid in loc_ids:
+            loc = await db.get(Location, lid)
+            if loc is not None:
+                await db.delete(loc)
+    await db.delete(zone)
+    await db.commit()
+
+
 @router.get("/{warehouse_id}/zones", response_model=list[ZoneOut])
 async def list_zones(warehouse_id: uuid.UUID, user: ActiveUser, db: DB):
     await _get_wh(warehouse_id, user, db)
