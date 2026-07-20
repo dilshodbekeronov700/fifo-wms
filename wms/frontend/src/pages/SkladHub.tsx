@@ -481,7 +481,13 @@ export default function SkladHub() {
 
 // ─── Cell inspector (view mode) — Asl Belgisi kod daraxti + qoldiq + bron ────
 function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
-  const locId = cell.slots[0]?.id
+  // Rack ichidagi yacheykalar (etaj/joy bo'yicha tartiblab). Default — band bo'lgani,
+  // aks holda birinchisi. Foydalanuvchi har yacheykani tanlab ko'ra oladi.
+  const orderedSlots = [...cell.slots].sort((a, b) =>
+    (a.tier ?? 0) - (b.tier ?? 0) || (a.position ?? 0) - (b.position ?? 0) || a.code.localeCompare(b.code))
+  const firstOcc = orderedSlots.find(s => s.status === 'occupied') ?? orderedSlots[0]
+  const [selId, setSelId] = useState<string | undefined>(firstOcc?.id)
+  const locId = selId ?? orderedSlots[0]?.id
   const [fetchingTree, setFetchingTree] = useState(false)
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['loc-contents', cell.wid, cell.code, locId],
@@ -507,7 +513,26 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
         </h3>
         <button onClick={onClose}><X size={16} className="text-slate-400" /></button>
       </div>
-      <div className="text-xs text-slate-400">{cell.wname} · {cell.slots.length} slot · {cell.rack_group ?? ''}</div>
+      <div className="text-xs text-slate-400">{cell.wname} · {cell.slots.length} yacheyka · {cell.rack_group ?? ''}</div>
+
+      {/* Yacheykalar — tanlab ko'rish (band = yashil) */}
+      <div className="flex flex-wrap gap-1">
+        {orderedSlots.map(s => {
+          const occ = s.status === 'occupied'
+          const sel = s.id === locId
+          return (
+            <button key={s.id} onClick={() => setSelId(s.id)}
+              title={`${s.code}${occ ? ' · band' : " · bo'sh"}`}
+              className={`text-xs font-mono rounded-md px-2 py-1 border transition ${
+                sel ? 'border-blue-500 bg-blue-500/10 text-blue-700'
+                : occ ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+              {s.code.split('-').pop()}{occ ? ' ●' : ''}
+            </button>
+          )
+        })}
+      </div>
+      <div className="text-[11px] text-slate-400 -mt-1">Tanlangan: <b className="font-mono text-slate-600">{orderedSlots.find(s => s.id === locId)?.code ?? '—'}</b></div>
 
       {isLoading && <div className="text-sm text-slate-400 py-4">Yuklanmoqda…</div>}
       {isError && <div className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">Ma'lumot yuklanmadi — backend yangilanmagan bo'lishi mumkin (qayta ishga tushiring).</div>}
@@ -541,7 +566,7 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <div className="text-xs font-semibold text-slate-500">Kodlar daraxti (Asl Belgisi)</div>
-              {(data.code_tree?.length > 0 || data.reservations?.length > 0) && (
+              {(data.stock?.length > 0 || data.code_tree?.length > 0 || data.reservations?.length > 0) && (
                 <button onClick={loadTree} disabled={fetchingTree}
                   className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 disabled:opacity-50"
                   title="Kod (unit/box/transport) daraxtini Asl Belgisi'dan yuklash — tepaga (root) + pastga (ichki kodlar)">
