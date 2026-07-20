@@ -204,6 +204,35 @@ class AslBelgisiClient:
         )
         return data["apiKey"]
 
+    # ── Product registry (mahsulot kartochkasi) ───────────────────────────────
+    async def search_product_by_gtin(self, gtin: str, limit: int = 5) -> list[dict]:
+        """Asl Belgisi mahsulot-reyestri — GTIN bo'yicha kartochka(lar).
+        Javob: {hasNextPage, products:[{name{uz,ru,en}, status, packageType,
+        tnved, producer, unit, files/images ...}]}."""
+        data = await self._get(
+            "public/api/v1/product-registry/product/search-by-gtin",
+            params={"gtin": gtin, "limit": limit, "offset": 0},
+        )
+        if isinstance(data, dict):
+            return data.get("products", []) or []
+        return data or []
+
+    async def get_product_file_b64(self, file_id: str) -> tuple[str, str] | None:
+        """Mahsulot rasmini (base64, mime) qaytaradi — data-URI uchun."""
+        import base64 as _b64
+        fid = (file_id or "").strip()
+        if not fid:
+            return None
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{self._base_url}/public/api/v1/product-registry/file/{fid}",
+                headers={"Authorization": self._headers.get("Authorization", ""),
+                         "Accept": "image/*, application/octet-stream, */*"},
+            )
+            resp.raise_for_status()
+            mime = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+            return _b64.b64encode(resp.content).decode(), mime
+
     # ── Codes (read) ─────────────────────────────────────────────────────────
     async def owner_check(self, codes: list[str], tin: str | None = None) -> OwnerCheckResponse:
         """

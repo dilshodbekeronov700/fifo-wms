@@ -14,7 +14,7 @@ import {
   getWarehouses, getZones, getAllLocations,
   updateLocationById, deleteLocationById, generateRack, setRackCells,
   bulkCreateLocations, getReservations, getLocationContents, fetchLocationCodeTree,
-  getProductByGtin,
+  getProductByGtin, getAslBelgisiProductCard,
 } from '../lib/api'
 import {
   Box, LayoutGrid, List, Layers, Pencil, Plus, Trash2, Save, X, Wand2,
@@ -502,6 +502,12 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
     queryFn: () => getProductByGtin(gtin as string),
     enabled: !!gtin, retry: false,
   })
+  // Asl Belgisi mahsulot-reyestri kartochkasi (rasm/status/qadoq)
+  const { data: abCard } = useQuery({
+    queryKey: ['ab-card', gtin],
+    queryFn: () => getAslBelgisiProductCard(gtin as string),
+    enabled: !!gtin, retry: false,
+  })
 
   const loadTree = async () => {
     setFetchingTree(true)
@@ -566,6 +572,27 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
                     <Info k="Box ichida" v={prodCard?.units_per_box} />
                     <Info k="Kategoriya" v={prodCard?.category} />
                     <Info k="ABC" v={prodCard?.abc_class} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Asl Belgisi mahsulot-reyestr kartochkasi */}
+            {abCard?.found && (
+              <div className="rounded-xl border border-emerald-200 overflow-hidden">
+                <div className="px-3 py-1.5 bg-emerald-50 text-[11px] font-bold text-emerald-700 uppercase tracking-wide flex items-center justify-between">
+                  <span>Asl Belgisi reyestri</span>
+                  {abCard.status && <span className="normal-case font-semibold text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white">{nameOf(abCard.status)}</span>}
+                </div>
+                <div className="p-3 space-y-1.5">
+                  <div className="font-semibold text-slate-800 text-sm">{nameOf(abCard.product_name)}</div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <Info k="Qadoq turi" v={nameOf(abCard.package_type)} />
+                    <Info k="Kategoriya" v={abCard.product_category} />
+                    <Info k="TNVED" v={abCard.tnved} mono />
+                    <Info k="Ishlab chiqaruvchi" v={abCard.producer} />
+                    <Info k="INN" v={abCard.inn} mono />
+                    <Info k="Mahsulot guruhi" v={abCard.product_group} />
                   </div>
                 </div>
               </div>

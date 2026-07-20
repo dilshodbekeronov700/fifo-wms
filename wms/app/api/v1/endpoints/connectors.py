@@ -334,6 +334,47 @@ async def sync_aslbelgisi_products(user: ActiveUser, db: DB):
     return result
 
 
+@router.get(
+    "/aslbelgisi/product-card",
+    dependencies=[require_permission("connector", "view")],
+)
+async def aslbelgisi_product_card(user: ActiveUser, db: DB, gtin: str):
+    """Asl Belgisi mahsulot-reyestr kartochkasi (GTIN bo'yicha) — nom, status,
+    qadoq turi, kategoriya, TNVED, ishlab chiqaruvchi. UI'da katta modalда ko'rsatiladi."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Tenant context required")
+    from app.core.connector_factory import get_aslbelgisi_client
+
+    def _loc(v):
+        if isinstance(v, dict):
+            return v.get("name") if isinstance(v.get("name"), dict) else v
+        return v
+
+    try:
+        client = await get_aslbelgisi_client(db, user.tenant_id)
+        products = await client.search_product_by_gtin(gtin, limit=3)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Asl Belgisi: {exc}")
+    if not products:
+        return {"found": False, "gtin": gtin}
+    p = products[0]
+    return {
+        "found": True,
+        "gtin": p.get("gtin") or gtin,
+        "id": p.get("id"),
+        "product_name": p.get("productName") or p.get("name"),
+        "status": _loc(p.get("status")),
+        "status_value": (p.get("status") or {}).get("value") if isinstance(p.get("status"), dict) else p.get("status"),
+        "package_type": _loc(p.get("packageType")),
+        "product_category": p.get("productCategory"),
+        "tnved": p.get("tnved"),
+        "producer": p.get("participantName"),
+        "inn": p.get("inn"),
+        "product_group": p.get("pg"),
+        "count": len(products),
+    }
+
+
 @router.get("/status", dependencies=[require_permission("connector", "view")])
 async def integration_status(user: ActiveUser, db: DB):
     """Integratsiya holati paneli — connectorlar + outbox navbat + sync vaqtlari."""

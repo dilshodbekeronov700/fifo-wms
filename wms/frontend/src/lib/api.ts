@@ -99,6 +99,7 @@ export const updateProduct = (id: string, d: any) => api.patch(`/products/${id}`
 export const deleteProduct = (id: string) => api.delete(`/products/${id}`).then(r => r.data)
 export const reconcileSmartup = () => api.post('/products/reconcile-smartup').then(r => r.data)
 export const getProductByGtin = (gtin: string) => api.get('/products/by-gtin', { params: { gtin } }).then(r => r.data)
+export const getAslBelgisiProductCard = (gtin: string) => api.get('/connectors/aslbelgisi/product-card', { params: { gtin } }).then(r => r.data)
 
 // ── Stock ────────────────────────────────────────────────────────────────────
 export const getStock = (warehouse_id: string) =>
