@@ -57,7 +57,9 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 # Terilishi kerak (ochiq) = B#N + B#V. "Barcha" ko'rinishi ham arxivni (A) chiqarib tashlaydi,
 # shunda WMS soni Smartup UI (~327) bilan mos keladi.
 OPEN_ORDER_STATUSES = ["B#N", "B#V"]
-ALL_ORDER_STATUSES = ["B#N", "B#V", "B#S", "C", "D"]  # A (arxiv) chiqarilgan
+# "Barcha" = arxivdan (A) tashqari HAMMA status — Smartup "Все заказы" bilan mos.
+# (B#E=tahrirda, B#W=jo'natishni kutmoqda ham kiradi; faqat A=arxiv chiqariladi.)
+ALL_ORDER_STATUSES = ["B#N", "B#V", "B#S", "B#E", "B#W", "C", "D"]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
