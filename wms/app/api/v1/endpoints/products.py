@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ActiveUser, get_db, require_permission
@@ -13,6 +14,18 @@ from app.schemas.inventory import BatchCreate, BatchOut, ProductCreate, ProductO
 
 router = APIRouter(prefix="/products", tags=["products"])
 DB = Annotated[AsyncSession, Depends(get_db)]
+
+
+def _conflict_detail(exc: IntegrityError) -> HTTPException:
+    """Unique-cheklov buzilishini tushunarli 409 xabarga aylantiradi."""
+    msg = str(getattr(exc, "orig", exc))
+    if "uq_product_tenant_gtin_active" in msg:
+        detail = "Bu GTIN allaqachon boshqa FAOL mahsulotда bor (bir GTIN — bitta faol mahsulot)."
+    elif "uq_product_tenant_smartup" in msg:
+        detail = "Bu Smartup kodi allaqachon boshqa mahsulotда bor."
+    else:
+        detail = "Saqlashda cheklov buzildi (takroriy GTIN yoki Smartup kodi)."
+    return HTTPException(status_code=409, detail=detail)
 
 
 @router.post(
@@ -26,7 +39,11 @@ async def create_product(body: ProductCreate, user: ActiveUser, db: DB):
         raise HTTPException(status_code=400, detail="Super-admin must specify tenant via admin endpoint")
     product = Product(tenant_id=user.tenant_id, **body.model_dump())
     db.add(product)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise _conflict_detail(exc)
     await db.refresh(product)
     return product
 
@@ -164,7 +181,11 @@ async def update_product(product_id: uuid.UUID, body: ProductUpdate, user: Activ
     changes = body.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(product, field, value)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise _conflict_detail(exc)
     await db.refresh(product)
     return product
 
