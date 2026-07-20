@@ -27,13 +27,13 @@ type Tab = 'orders' | 'inputs' | 'movements' | 'stocktaking' | 'writeoffs' | 'sv
 // Smartup buyurtma status kodlari → tushunarli o'zbekcha yorliq + rang.
 const ORDER_STATUS: Record<string, { label: string; cls: string }> = {
   'A':   { label: 'Arxiv',              cls: 'bg-slate-100 text-slate-500' },
-  'B#N': { label: 'Yangi',              cls: 'bg-emerald-100 text-emerald-700' },
-  'B#W': { label: 'Jo\'natishni kutmoqda', cls: 'bg-blue-100 text-blue-700' },
-  'B#S': { label: 'Jo\'natilgan',        cls: 'bg-indigo-100 text-indigo-700' },
-  'B#E': { label: 'Band (tahrir)',      cls: 'bg-amber-100 text-amber-700' },
-  'B#V': { label: 'Band (tasdiq)',      cls: 'bg-violet-100 text-violet-700' },
-  'C':   { label: 'Yetkazilgan',        cls: 'bg-rose-100 text-rose-700' },
-  'D':   { label: 'Qoralama',           cls: 'bg-slate-100 text-slate-600' },
+  'B#N': { label: 'Yangi',              cls: 'bg-emerald-100 text-emerald-700' },   // Новый
+  'B#E': { label: 'Jarayonda',         cls: 'bg-amber-100 text-amber-700' },        // В обработке
+  'B#W': { label: 'Kutilmoqda',        cls: 'bg-blue-100 text-blue-700' },          // В ожидании
+  'B#V': { label: 'Tasdiqlangan',      cls: 'bg-violet-100 text-violet-700' },      // Smartup UI'da alohida karta yo'q
+  'B#S': { label: 'Jo\'natilgan',       cls: 'bg-indigo-100 text-indigo-700' },      // Отгружен
+  'C':   { label: 'Yetkazilgan',        cls: 'bg-rose-100 text-rose-700' },          // Доставлен
+  'D':   { label: 'Qoralama',           cls: 'bg-slate-100 text-slate-600' },        // Черновик
 }
 const statusBadge = (s: string) => ORDER_STATUS[s] ?? { label: s || '—', cls: 'bg-slate-100 text-slate-600' }
 
@@ -219,9 +219,23 @@ export default function Smartup() {
             </FilterBar>
             <p className="text-xs text-slate-400">
               {showAll
-                ? 'Barcha buyurtmalar (arxivdan tashqari) — Smartup ro\'yxati bilan mos.'
+                ? 'Barcha buyurtmalar (arxivdan tashqari) — Smartup "Все заказы" bilan mos.'
                 : 'Terilishi kerak bo\'lgan ochiq buyurtmalar (Yangi / jarayonda).'}
             </p>
+            {showAll && (() => {
+              const bvCount = all.filter((o: any) => o.status === 'B#V').length
+              return bvCount > 0 ? (
+                <div className="flex items-start gap-2 text-xs text-violet-700 bg-violet-500/10 rounded-lg px-3 py-2">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    Shundan <b>{bvCount} ta «Tasdiqlangan» (B#V)</b> buyurtma. Smartup UI'da bu status uchun
+                    alohida karta yo'q — u ularni «Черновик»/«Доставлен»ga bo'lib yuboradi va bir nechtasini
+                    umumiy songa qo'shmaydi. Shuning uchun WMS jami Smartup «Все заказы»dan ±bir necha ko'proq
+                    bo'lishi mumkin (yo'qolgan buyurtma yo'q — WMS to'liqroq).
+                  </span>
+                </div>
+              ) : null
+            })()}
             <OrdersTable rows={filtered} loading={orders.isLoading}
               canWrite={canWriteErp} onChanged={() => orders.refetch()} />
           </div>
