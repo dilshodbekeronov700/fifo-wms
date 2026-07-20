@@ -3,7 +3,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ActiveUser, get_db, require_permission
@@ -40,6 +40,94 @@ async def list_products(user: ActiveUser, db: DB, include_inactive: bool = False
         q = q.where(Product.tenant_id == user.tenant_id)
     result = await db.execute(q.order_by(Product.created_at))
     return result.scalars().all()
+
+
+@router.post(
+    "/reconcile-smartup",
+    dependencies=[require_permission("product", "update")],
+)
+async def reconcile_smartup(user: ActiveUser, db: DB):
+    """Asl Belgisi (GTIN) ↔ Smartup (code) avto-bog'lash + dedupe.
+
+    WMS'da seed'dan kelgan mahsulot GTIN'i bor, kodsiz; Smartup sync'idan kelgan
+    esa kod'li, gtinsiz. Smartup inventory (gtin/barcodes) orqali mos kelganlarni
+    BITTA mahsulotga birlashtiramiz (gtin+kod), ortiqcha (reference'siz) dublikatni
+    o'chiramiz. Mos kelmaganlar /products'da qo'lda bog'lanadi ("mapping yo'q" filtri).
+    """
+    if user.tenant_id is None:
+        raise HTTPException(status_code=400, detail="Tenant context required")
+    from app.core.connector_factory import get_smartup_client
+    from app.models.inventory import MarkingCode, StockItem
+    from app.models.ledger import LedgerEntry
+
+    def _norm(g) -> str:
+        return str(g or "").strip().lstrip("0")
+
+    client = await get_smartup_client(db, user.tenant_id)
+    inv = await client.get_product_references()
+    gtin2code: dict[str, str] = {}
+    for i in inv:
+        code = (i.get("code") or "").strip()
+        if not code:
+            continue
+        cands = [i.get("gtin")]
+        bc = i.get("barcodes")
+        if isinstance(bc, list):
+            cands += [(x.get("barcode") if isinstance(x, dict) else x) for x in bc]
+        elif bc:
+            cands.append(bc)
+        for g in cands:
+            if _norm(g):
+                gtin2code.setdefault(_norm(g), code)
+
+    prods = (await db.execute(
+        select(Product).where(Product.tenant_id == user.tenant_id)
+    )).scalars().all()
+    by_code = {p.smartup_product_code: p for p in prods if p.smartup_product_code}
+
+    async def _has_refs(pid: uuid.UUID) -> bool:
+        for model in (StockItem, LedgerEntry, MarkingCode, Batch):
+            hit = (await db.execute(
+                select(model.id).where(model.product_id == pid).limit(1)
+            )).first()
+            if hit:
+                return True
+        return False
+
+    linked = deleted = skipped = 0
+    for p in prods:
+        if not (p.gtin and not p.smartup_product_code):
+            continue
+        code = gtin2code.get(_norm(p.gtin))
+        if not code:
+            continue
+        twin = by_code.get(code)
+        if twin is not None and twin.id != p.id:
+            # Kod band — dublikatni faqat reference'siz bo'lsa o'chiramiz.
+            if await _has_refs(twin.id):
+                skipped += 1
+                continue
+            await db.delete(twin)
+            by_code.pop(code, None)
+            deleted += 1
+            await db.flush()
+        p.smartup_product_code = code
+        by_code[code] = p
+        linked += 1
+
+    await db.commit()
+    remaining = (await db.execute(
+        select(func.count()).select_from(Product).where(
+            Product.tenant_id == user.tenant_id,
+            Product.is_active.is_(True),
+            (Product.gtin.is_(None)) | (Product.smartup_product_code.is_(None)),
+        )
+    )).scalar()
+    return {
+        "linked": linked, "deleted_duplicates": deleted, "skipped_with_refs": skipped,
+        "remaining_unmapped": remaining,
+        "detail": f"{linked} ta avto-bog'landi, {deleted} dublikat o'chirildi, {remaining} ta qo'lda qoldi",
+    }
 
 
 @router.get("/by-gtin", response_model=ProductOut)

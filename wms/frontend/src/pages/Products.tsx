@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAllProducts, createProduct, updateProduct, deleteProduct } from '../lib/api'
-import { Plus, Package, Pencil, Search, X, Trash2, RotateCcw, Download } from 'lucide-react'
+import { getAllProducts, createProduct, updateProduct, deleteProduct, reconcileSmartup } from '../lib/api'
+import { Plus, Package, Pencil, Search, X, Trash2, RotateCcw, Download, Link2, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { z } from 'zod'
 import { downloadCsv } from '../components/Filters'
@@ -39,6 +39,7 @@ export default function Products() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [showInactive, setShowInactive] = useState(false)
+  const [onlyUnmapped, setOnlyUnmapped] = useState(false)  // gtin YOKI smartup_code yo'q
 
   const validateAndSave = () => {
     const res = productFormSchema.safeParse(form)
@@ -57,16 +58,31 @@ export default function Products() {
     queryFn: () => getAllProducts(showInactive),
   })
 
+  const unmappedCount = useMemo(
+    () => (products as any[]).filter(p => !p.gtin || !p.smartup_product_code).length,
+    [products])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return products
-    return products.filter((p: any) =>
+    let rows = products as any[]
+    if (onlyUnmapped) rows = rows.filter(p => !p.gtin || !p.smartup_product_code)
+    if (!q) return rows
+    return rows.filter((p: any) =>
       (p.name?.ru ?? '').toLowerCase().includes(q) ||
       (p.name?.uz ?? '').toLowerCase().includes(q) ||
       (p.gtin ?? '').toLowerCase().includes(q) ||
       (p.smartup_product_code ?? '').toLowerCase().includes(q)
     )
-  }, [products, search])
+  }, [products, search, onlyUnmapped])
+
+  const reconcile = useMutation({
+    mutationFn: reconcileSmartup,
+    onSuccess: (r: any) => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      toast.success(r?.detail ?? 'Avto-bog\'lash bajarildi')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Avto-bog\'lashda xatolik'),
+  })
 
   const resetForm = () => { setForm({ ...EMPTY }); setEditingId(null); setShowForm(false) }
   const openCreate = () => { setForm({ ...EMPTY }); setEditingId(null); setShowForm(true) }
@@ -130,6 +146,18 @@ export default function Products() {
               <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="accent-blue-600" />
               Nofaollarni ko'rsatish
             </label>
+            <button
+              onClick={() => setOnlyUnmapped(v => !v)}
+              className={`flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition ${
+                onlyUnmapped ? 'bg-amber-500/15 border-amber-400 text-amber-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+              title="GTIN yoki Smartup kodi yo'q mahsulotlar">
+              <AlertTriangle size={13} /> Mapping yo'q{unmappedCount ? ` (${unmappedCount})` : ''}
+            </button>
+            <Button variant="secondary" onClick={() => reconcile.mutate()} loading={reconcile.isPending}
+              icon={<Link2 size={14} />} title="Asl Belgisi GTIN ↔ Smartup kod avto-bog'lash + dublikatlarni tozalash">
+              Avto-bog'lash
+            </Button>
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <Input

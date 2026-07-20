@@ -97,6 +97,7 @@ export const getAllProducts = (includeInactive = false) =>
 export const createProduct = (d: any) => api.post('/products/', d).then(r => r.data)
 export const updateProduct = (id: string, d: any) => api.patch(`/products/${id}`, d).then(r => r.data)
 export const deleteProduct = (id: string) => api.delete(`/products/${id}`).then(r => r.data)
+export const reconcileSmartup = () => api.post('/products/reconcile-smartup').then(r => r.data)
 
 // ── Stock ────────────────────────────────────────────────────────────────────
 export const getStock = (warehouse_id: string) =>
