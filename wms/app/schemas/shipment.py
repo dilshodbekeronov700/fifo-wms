@@ -15,6 +15,12 @@ class ShipmentOrderLine(BaseModel):
     uom: str
     product_id: uuid.UUID | None = None   # resolved WMS product (None = unmapped)
     available_boxes: int | None = None     # current free stock for this SKU
+    product_price: float | None = None
+    price_type_code: str | None = None
+    vat_percent: float | None = None
+    batch_number: str | None = None
+    warehouse_code: str | None = None
+    sold_amount: float | None = None
 
 
 class ShipmentOrder(BaseModel):
@@ -27,6 +33,23 @@ class ShipmentOrder(BaseModel):
     order_date: str | None = None
     delivery_date: str | None = None
     with_marking: str | None = None
+    # Smartup "Заказы" ustunlari
+    working_zone: str | None = None
+    payment_type_code: str | None = None
+    price_type_code: str | None = None
+    delivery_address: str | None = None
+    delivery_number: str | None = None
+    contract_number: str | None = None
+    note: str | None = None
+    discount_value: float | None = None
+    discount_kind: str | None = None
+    weight_netto: float | None = None
+    weight_brutto: float | None = None
+    litre: float | None = None
+    sales_manager_name: str | None = None
+    expeditor_name: str | None = None
+    driver_name: str | None = None
+    self_shipment: str | None = None
     lines: list[ShipmentOrderLine] = []
 
 

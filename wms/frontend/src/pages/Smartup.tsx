@@ -39,8 +39,25 @@ const statusBadge = (s: string) => ORDER_STATUS[s] ?? { label: s || '—', cls: 
 
 const fmtSum = (v: number | null | undefined) =>
   v == null ? '—' : new Intl.NumberFormat('uz-UZ').format(v) + ' so\'m'
+const fmtNum = (v: number | null | undefined, unit = '') =>
+  v == null ? '—' : new Intl.NumberFormat('uz-UZ').format(v) + (unit ? ' ' + unit : '')
 // "25.06.2026 16:24:54" → "25.06.2026" (vaqtni olib tashlaymiz)
 const fmtDate = (v: string | null | undefined) => (v ? v.split(' ')[0] : '—')
+
+// Smartup to'lov turi kodlari → nom (jonli order$export bilan tekshirilgan:
+//   PYMT:1=Наличные (naqd), PYMT:3=Перечисление (o'tkazma), yo'q=Без типа оплаты).
+const PAYMENT_TYPE: Record<string, string> = {
+  'PYMT:1': 'Naqd pul',
+  'PYMT:2': 'Konsignatsiya',
+  'PYMT:3': 'Pul o\'tkazma',
+  'PYMT:4': 'Plastik karta',
+}
+const paymentLabel = (c: string | null | undefined) => (c ? (PAYMENT_TYPE[c] || c) : 'To\'lov turisiz')
+// Chegirma/naценка — deal_margin_value (0 = "Yo'q")
+const discountLabel = (v: number | null | undefined, kind?: string | null) => {
+  if (v == null || v === 0) return 'Yo\'q'
+  return kind === 'P' ? `${v}%` : new Intl.NumberFormat('uz-UZ').format(v)
+}
 
 // Backend xato xabarini XAVFSIZ stringga aylantiradi. FastAPI `detail` string,
 // obyekt yoki massiv (422 validatsiya) bo'lishi mumkin — to'g'ridan-to'g'ri
@@ -245,6 +262,7 @@ export default function Smartup() {
                 </div>
               ) : null
             })()}
+            <OrdersSummary rows={filtered} />
             <OrdersTable rows={filtered} loading={orders.isLoading}
               canWrite={canWriteErp} onChanged={() => orders.refetch()} />
           </div>
@@ -288,6 +306,52 @@ function Empty({ loading, text }: { loading: boolean; text: string }) {
   return <div className="py-12 text-center text-slate-400 text-sm">{loading ? 'Yuklanmoqda…' : text}</div>
 }
 
+// Smartup "Заказы" yuqorisidagi umumiy kartalar (soni, og'irlik, litr, to'lov turi).
+function OrdersSummary({ rows }: { rows: any[] }) {
+  const sum = (f: (o: any) => number) => rows.reduce((s, o) => s + (f(o) || 0), 0)
+  const money = sum(o => Number(o.total_amount))
+  const brutto = sum(o => Number(o.weight_brutto))
+  const netto = sum(o => Number(o.weight_netto))
+  const litre = sum(o => Number(o.litre))
+  // To'lov turi bo'yicha guruhlash
+  const byPay = rows.reduce((m: Record<string, { n: number; amt: number }>, o: any) => {
+    const k = paymentLabel(o.payment_type_code)
+    m[k] = m[k] || { n: 0, amt: 0 }
+    m[k].n += 1; m[k].amt += Number(o.total_amount) || 0
+    return m
+  }, {})
+  const cell = 'rounded-xl border border-slate-200 bg-white px-4 py-3'
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className={cell}>
+        <div className="text-xs text-slate-400">Buyurtmalar</div>
+        <div className="text-lg font-semibold text-slate-800">{rows.length} ta</div>
+        <div className="text-xs text-slate-500 mt-0.5">{fmtSum(money)}</div>
+      </div>
+      <div className={cell}>
+        <div className="text-xs text-slate-400">Og'irlik (brutto / netto)</div>
+        <div className="text-lg font-semibold text-slate-800">{fmtNum(Math.round(brutto), 'kg')}</div>
+        <div className="text-xs text-slate-500 mt-0.5">netto {fmtNum(Math.round(netto), 'kg')}</div>
+      </div>
+      <div className={cell}>
+        <div className="text-xs text-slate-400">Hajmi</div>
+        <div className="text-lg font-semibold text-slate-800">{fmtNum(Math.round(litre), 'litr')}</div>
+      </div>
+      <div className={cell}>
+        <div className="text-xs text-slate-400">To'lov turi bo'yicha</div>
+        <div className="space-y-0.5 mt-1">
+          {Object.entries(byPay).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => (
+            <div key={k} className="flex items-center justify-between text-xs">
+              <span className="text-slate-600">{k}</span>
+              <span className="text-slate-400">{v.n} · {fmtSum(v.amt)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function OrdersTable({ rows, loading, canWrite, onChanged }: {
   rows: any[]; loading: boolean; canWrite?: boolean; onChanged?: () => void
 }) {
@@ -318,7 +382,11 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
             <th className="w-8 px-2 py-2"></th>
             <th className="text-left px-3 py-2">Buyurtma №</th>
             <th className="text-left px-3 py-2">Mijoz</th>
-            <th className="text-left px-3 py-2">Sana</th>
+            <th className="text-left px-3 py-2">Ish zonasi</th>
+            <th className="text-center px-3 py-2">KM</th>
+            <th className="text-left px-3 py-2">Buyurtma / Yetkazish</th>
+            <th className="text-left px-3 py-2">To'lov / Narx turi</th>
+            <th className="text-left px-3 py-2">Chegirma</th>
             <th className="text-right px-3 py-2">Summa</th>
             <th className="text-left px-3 py-2">Holati</th>
             <th className="text-right px-3 py-2">Mahsulot</th>
@@ -330,7 +398,7 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
             const b = statusBadge(o.status)
             const id = String(o.deal_id ?? i)
             const isOpen = open === id
-            const colspan = canWrite ? 8 : 7
+            const colspan = canWrite ? 12 : 11
             return (
               <Fragment key={id}>
                 <tr onClick={() => setOpen(isOpen ? null : id)}
@@ -343,11 +411,24 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
                     <div className="font-medium text-slate-700">{o.customer_name || 'Noma\'lum mijoz'}</div>
                     {o.customer_tin && <div className="text-xs text-slate-400">STIR: {o.customer_tin}</div>}
                   </td>
-                  <td className="px-3 py-1.5 text-slate-600">{fmtDate(o.order_date)}</td>
+                  <td className="px-3 py-1.5 text-slate-600 text-xs">{o.working_zone || '—'}</td>
+                  <td className="px-3 py-1.5 text-center">
+                    {o.with_marking === 'Y'
+                      ? <span className="text-xs rounded px-1.5 py-0.5 bg-teal-100 text-teal-700">Ha</span>
+                      : <span className="text-xs text-slate-400">Yo'q</span>}
+                  </td>
+                  <td className="px-3 py-1.5 text-xs text-slate-600">
+                    <div>{fmtDate(o.order_date)}</div>
+                    {o.delivery_date && <div className="text-slate-400">→ {fmtDate(o.delivery_date)}</div>}
+                  </td>
+                  <td className="px-3 py-1.5 text-xs text-slate-600">
+                    <div>{paymentLabel(o.payment_type_code)}</div>
+                    {o.price_type_code && <div className="text-slate-400">narx: {o.price_type_code}</div>}
+                  </td>
+                  <td className="px-3 py-1.5 text-xs text-slate-600">{discountLabel(o.discount_value, o.discount_kind)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{fmtSum(o.total_amount)}</td>
                   <td className="px-3 py-1.5">
                     <span className={`text-xs rounded px-1.5 py-0.5 ${b.cls}`}>{b.label}</span>
-                    {o.with_marking === 'Y' && <span className="ml-1 text-xs rounded px-1.5 py-0.5 bg-teal-100 text-teal-700">markirovka</span>}
                   </td>
                   <td className="px-3 py-1.5 text-right">{o.lines?.length ?? 0} ta</td>
                   {canWrite && (
@@ -364,6 +445,7 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
                 {isOpen && (
                   <tr className="bg-slate-500/5">
                     <td colSpan={colspan} className="px-4 py-3">
+                      <OrderMeta o={o} />
                       <OrderLines lines={o.lines ?? []} />
                     </td>
                   </tr>
@@ -377,10 +459,50 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
   )
 }
 
+// Buyurtma sarlavha detallari (Smartup buyurtma kartasi "Umumiy" tab kabi).
+function OrderMeta({ o }: { o: any }) {
+  const items: [string, any][] = [
+    ['Mijoz', o.customer_name],
+    ['STIR', o.customer_tin],
+    ['Ish zonasi', o.working_zone],
+    ['To\'lov turi', paymentLabel(o.payment_type_code)],
+    ['Narx turi', o.price_type_code],
+    ['Chegirma/naценка', discountLabel(o.discount_value, o.discount_kind)],
+    ['Buyurtma sanasi', fmtDate(o.order_date)],
+    ['Yetkazish sanasi', fmtDate(o.delivery_date)],
+    ['Yetkazish manzili', o.delivery_address],
+    ['Nakladnaya №', o.delivery_number],
+    ['Shartnoma №', o.contract_number],
+    ['Sotuv menejeri', o.sales_manager_name],
+    ['Ekspeditor', o.expeditor_name],
+    ['Haydovchi', o.driver_name],
+    ['O\'z-o\'ziga jo\'natish', o.self_shipment === 'Y' ? 'Ha' : (o.self_shipment === 'N' ? 'Yo\'q' : null)],
+    ['Vazn brutto', o.weight_brutto != null ? fmtNum(o.weight_brutto, 'kg') : null],
+    ['Vazn netto', o.weight_netto != null ? fmtNum(o.weight_netto, 'kg') : null],
+    ['Hajmi', o.litre != null ? fmtNum(o.litre, 'litr') : null],
+    ['Izoh', o.note],
+  ]
+  const shown = items.filter(([, v]) => v != null && v !== '' && v !== '—')
+  if (!shown.length) return null
+  return (
+    <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
+        {shown.map(([k, v]) => (
+          <div key={k}>
+            <div className="text-[11px] text-slate-400">{k}</div>
+            <div className="text-xs text-slate-700 break-words">{String(v)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Buyurtma mahsulot qatorlari (Smartup "Товар" tab kabi) — kod, GTIN, miqdor.
 function OrderLines({ lines }: { lines: any[] }) {
   if (!lines.length) return <div className="text-xs text-slate-400">Mahsulot qatori yo'q</div>
   const totalQty = lines.reduce((s, l) => s + (Number(l.qty_ordered) || 0), 0)
+  const totalAmt = lines.reduce((s, l) => s + (Number(l.sold_amount) || 0), 0)
   return (
     <div>
       <div className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
@@ -395,18 +517,26 @@ function OrderLines({ lines }: { lines: any[] }) {
               <th className="text-left px-3 py-1.5">GTIN</th>
               <th className="text-right px-3 py-1.5">Miqdor</th>
               <th className="text-left px-3 py-1.5">Birlik</th>
+              <th className="text-right px-3 py-1.5">Narx</th>
+              <th className="text-right px-3 py-1.5">QQS%</th>
+              <th className="text-right px-3 py-1.5">Summa</th>
+              <th className="text-left px-3 py-1.5">Partiya</th>
             </tr>
           </thead>
           <tbody>
             {lines.map((l: any, i: number) => (
               <tr key={i} className="border-t border-slate-100">
                 <td className="px-3 py-1.5 font-mono">{l.product_code || '—'}</td>
-                <td className="px-3 py-1.5 text-slate-700">{l.product_name || <span className="text-slate-300">nomsiz (WMS'da mapping yo'q)</span>}</td>
+                <td className="px-3 py-1.5 text-slate-700">{l.product_name || <span className="text-slate-300">nomsiz</span>}</td>
                 <td className="px-3 py-1.5 font-mono text-slate-500">
                   {l.gtin ? <span className="inline-flex items-center gap-1"><Barcode size={12} className="text-slate-400" />{l.gtin}</span> : '—'}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums font-medium">{l.qty_ordered ?? 0}</td>
                 <td className="px-3 py-1.5 text-slate-500 uppercase">{l.uom || 'unit'}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">{l.product_price != null ? fmtNum(l.product_price) : '—'}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">{l.vat_percent != null ? l.vat_percent : '—'}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">{l.sold_amount != null ? fmtNum(l.sold_amount) : '—'}</td>
+                <td className="px-3 py-1.5 font-mono text-slate-400">{l.batch_number || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -414,6 +544,8 @@ function OrderLines({ lines }: { lines: any[] }) {
             <tr className="border-t border-slate-200 bg-slate-50 font-medium text-slate-600">
               <td className="px-3 py-1.5" colSpan={3}>Jami</td>
               <td className="px-3 py-1.5 text-right tabular-nums">{totalQty}</td>
+              <td className="px-3 py-1.5" colSpan={3}></td>
+              <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(totalAmt)}</td>
               <td className="px-3 py-1.5"></td>
             </tr>
           </tfoot>

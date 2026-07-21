@@ -40,8 +40,14 @@ class SmartupOrderLine:
     qty_ordered: float
     uom: str
     deal_id: str
-    product_name: str | None = None   # WMS Product'dan boyitiladi (order_products'da yo'q)
+    product_name: str | None = None   # Smartup order_products'da BOR (product_name)
     expiry_date: str | None = None    # order_products qatoridan (FEFO uchun)
+    product_price: float | None = None   # birlik narxi
+    price_type_code: str | None = None   # narx turi (Тип цены)
+    vat_percent: float | None = None     # QQS %
+    batch_number: str | None = None      # partiya raqami
+    warehouse_code: str | None = None    # sklad kodi (qator darajasida)
+    sold_amount: float | None = None     # qator summasi
 
 
 @dataclass
@@ -55,6 +61,23 @@ class SmartupOrder:
     total_amount: float | None = None  # total_amount — buyurtma summasi
     order_date: str | None = None      # deal_time — buyurtma sanasi
     delivery_date: str | None = None   # delivery_date — yetkazish sanasi
+    # ── Smartup "Заказы" ustunlari bilan to'liq moslik uchun ──
+    working_zone: str | None = None       # room_name — Рабочая зона
+    payment_type_code: str | None = None  # PYMT:1/PYMT:3/… — Тип оплаты
+    price_type_code: str | None = None    # birinchi qatordan — Тип цены
+    delivery_address: str | None = None   # delivery_address_full/short
+    delivery_number: str | None = None    # yetkazish/nakladnaya raqami
+    contract_number: str | None = None    # shartnoma raqami
+    note: str | None = None               # note / deal_note — Примечания
+    discount_value: float | None = None   # deal_margin_value — skidka/naценка
+    discount_kind: str | None = None      # deal_margin_kind (P=%, ...)
+    weight_netto: float | None = None     # total_weight_netto — Вес нетто
+    weight_brutto: float | None = None    # total_weight_brutto — Вес брутто
+    litre: float | None = None            # total_litre — Литры
+    sales_manager_name: str | None = None # sales_manager_name — menejer
+    expeditor_name: str | None = None     # expeditor_name — ekspeditor
+    driver_name: str | None = None        # driver_name — haydovchi
+    self_shipment: str | None = None      # self_shipment (Y/N)
     lines: list[SmartupOrderLine] = field(default_factory=list)
 
 
@@ -178,22 +201,35 @@ class SmartupClient:
         orders: list[SmartupOrder] = []
         for raw in data.get("order", []):
             deal_id = str(raw.get("deal_id", ""))
+            def _f(v: Any) -> float | None:
+                try:
+                    return float(v) if v not in (None, "") else None
+                except (TypeError, ValueError):
+                    return None
+
+            raw_lines = raw.get("order_products", [])
             lines = [
                 SmartupOrderLine(
                     product_unit_id=str(ln.get("product_unit_id", "")),
                     product_code=str(ln.get("product_code", "")),
-                    gtin=ln.get("gtin"),
+                    gtin=ln.get("gtin") or (ln.get("product_barcode") or None),
                     qty_ordered=float(ln.get("order_quant") or ln.get("quant") or ln.get("qty") or 0),
                     uom=ln.get("measure_code") or ln.get("uom", "unit"),
                     deal_id=deal_id,
+                    product_name=ln.get("product_name") or None,
                     expiry_date=(ln.get("expiry_date") or None),
+                    product_price=_f(ln.get("product_price")),
+                    price_type_code=ln.get("price_type_code") or None,
+                    vat_percent=_f(ln.get("vat_percent")),
+                    batch_number=ln.get("batch_number") or None,
+                    warehouse_code=ln.get("warehouse_code") or None,
+                    sold_amount=_f(ln.get("sold_amount")),
                 )
-                for ln in raw.get("order_products", [])
+                for ln in raw_lines
             ]
-            try:
-                amount = float(raw.get("total_amount")) if raw.get("total_amount") else None
-            except (TypeError, ValueError):
-                amount = None
+            first_price_type = next(
+                (ln.get("price_type_code") for ln in raw_lines if ln.get("price_type_code")), None
+            )
             orders.append(SmartupOrder(
                 deal_id=deal_id,
                 order_number=str(raw.get("invoice_number") or raw.get("delivery_number") or ""),
@@ -201,9 +237,25 @@ class SmartupClient:
                 customer_tin=raw.get("person_tin"),
                 with_marking=raw.get("with_marking"),
                 customer_name=raw.get("person_name") or None,
-                total_amount=amount,
+                total_amount=_f(raw.get("total_amount")),
                 order_date=raw.get("deal_time") or None,
                 delivery_date=raw.get("delivery_date") or None,
+                working_zone=raw.get("room_name") or None,
+                payment_type_code=raw.get("payment_type_code") or None,
+                price_type_code=first_price_type,
+                delivery_address=raw.get("delivery_address_full") or raw.get("delivery_address_short") or None,
+                delivery_number=raw.get("delivery_number") or None,
+                contract_number=raw.get("contract_number") or None,
+                note=raw.get("note") or raw.get("deal_note") or None,
+                discount_value=_f(raw.get("deal_margin_value")),
+                discount_kind=raw.get("deal_margin_kind") or None,
+                weight_netto=_f(raw.get("total_weight_netto")),
+                weight_brutto=_f(raw.get("total_weight_brutto")),
+                litre=_f(raw.get("total_litre")),
+                sales_manager_name=raw.get("sales_manager_name") or None,
+                expeditor_name=raw.get("expeditor_name") or None,
+                driver_name=raw.get("driver_name") or None,
+                self_shipment=raw.get("self_shipment") or None,
                 lines=lines,
             ))
         return orders
