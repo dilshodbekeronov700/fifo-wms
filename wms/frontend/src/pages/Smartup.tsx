@@ -245,23 +245,10 @@ export default function Smartup() {
             </FilterBar>
             <p className="text-xs text-slate-400">
               {showAll
-                ? 'Barcha buyurtmalar (arxivdan tashqari) — Smartup "Все заказы" bilan mos.'
-                : 'Terilishi kerak bo\'lgan ochiq buyurtmalar (Yangi / jarayonda).'}
+                ? 'Barcha buyurtmalar — Smartup UI "Заказы" bilan bir xil status to\'plami (Yangi/Jarayonda/Kutilmoqda/Jo\'natilgan/Yetkazilgan/Qoralama). Arxiv (A) va bugungi «Tasdiqlangan» (B#V) — Smartup UI kabi — kirmaydi.'
+                : 'Terilishi kerak bo\'lgan ochiq buyurtmalar (Yangi + Tasdiqlangan).'}
             </p>
-            {showAll && (() => {
-              const bvCount = all.filter((o: any) => o.status === 'B#V').length
-              return bvCount > 0 ? (
-                <div className="flex items-start gap-2 text-xs text-violet-700 bg-violet-500/10 rounded-lg px-3 py-2">
-                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                  <span>
-                    Shundan <b>{bvCount} ta «Tasdiqlangan» (B#V)</b> buyurtma. Smartup UI'da bu status uchun
-                    alohida karta yo'q — u ularni «Черновик»/«Доставлен»ga bo'lib yuboradi va bir nechtasini
-                    umumiy songa qo'shmaydi. Shuning uchun WMS jami Smartup «Все заказы»dan ±bir necha ko'proq
-                    bo'lishi mumkin (yo'qolgan buyurtma yo'q — WMS to'liqroq).
-                  </span>
-                </div>
-              ) : null
-            })()}
+            <OrdersStatusCards rows={filtered} />
             <OrdersSummary rows={filtered} />
             <OrdersTable rows={filtered} loading={orders.isLoading}
               canWrite={canWriteErp} onChanged={() => orders.refetch()} />
@@ -304,6 +291,44 @@ export default function Smartup() {
 
 function Empty({ loading, text }: { loading: boolean; text: string }) {
   return <div className="py-12 text-center text-slate-400 text-sm">{loading ? 'Yuklanmoqda…' : text}</div>
+}
+
+// Smartup UI "Заказы" status kartalari — har holat bo'yicha soni + summasi.
+// Tartib Smartup UI kabi: Barcha → Yangi → Jarayonda → Kutilmoqda → Jo'natilgan → Yetkazilgan → Qoralama.
+const STATUS_CARD_ORDER = ['B#N', 'B#E', 'B#W', 'B#S', 'C', 'D']
+const STATUS_CARD_CLS: Record<string, string> = {
+  'B#N': 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  'B#E': 'border-amber-200 bg-amber-50 text-amber-700',
+  'B#W': 'border-violet-200 bg-violet-50 text-violet-700',
+  'B#S': 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  'C':   'border-rose-200 bg-rose-50 text-rose-700',
+  'D':   'border-slate-200 bg-slate-100 text-slate-600',
+}
+function OrdersStatusCards({ rows }: { rows: any[] }) {
+  const g = rows.reduce((m: Record<string, { n: number; amt: number }>, o: any) => {
+    const k = o.status
+    m[k] = m[k] || { n: 0, amt: 0 }
+    m[k].n += 1; m[k].amt += Number(o.total_amount) || 0
+    return m
+  }, {})
+  const totalAmt = rows.reduce((s, o) => s + (Number(o.total_amount) || 0), 0)
+  const present = STATUS_CARD_ORDER.filter(s => g[s])
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="shrink-0 rounded-xl border-2 border-slate-700 bg-slate-800 text-white px-4 py-2.5 min-w-[150px]">
+        <div className="text-xs opacity-70">Barcha buyurtmalar</div>
+        <div className="text-lg font-bold">{rows.length}</div>
+        <div className="text-[11px] opacity-70">{fmtSum(totalAmt)}</div>
+      </div>
+      {present.map(s => (
+        <div key={s} className={`shrink-0 rounded-xl border-2 px-4 py-2.5 min-w-[140px] ${STATUS_CARD_CLS[s] || 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+          <div className="text-xs font-medium">{statusBadge(s).label}</div>
+          <div className="text-lg font-bold">{g[s].n}</div>
+          <div className="text-[11px] opacity-80">{fmtSum(g[s].amt)}</div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // Smartup "Заказы" yuqorisidagi umumiy kartalar (soni, og'irlik, litr, to'lov turi).

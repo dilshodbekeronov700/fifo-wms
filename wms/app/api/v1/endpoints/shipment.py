@@ -57,9 +57,13 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 # Terilishi kerak (ochiq) = B#N + B#V. "Barcha" ko'rinishi ham arxivni (A) chiqarib tashlaydi,
 # shunda WMS soni Smartup UI (~327) bilan mos keladi.
 OPEN_ORDER_STATUSES = ["B#N", "B#V"]
-# "Barcha" = arxivdan (A) tashqari HAMMA status — Smartup "Все заказы" bilan mos.
-# (B#E=tahrirda, B#W=jo'natishni kutmoqda ham kiradi; faqat A=arxiv chiqariladi.)
-ALL_ORDER_STATUSES = ["B#N", "B#V", "B#S", "B#E", "B#W", "C", "D"]
+# "Barcha" = Smartup UI "Заказы" kartalari bilan AYNAN bir xil status to'plami:
+#   D=Черновик, B#N=Новый, B#E=В обработке, B#W=В ожидании, B#S=Отгружен, C=Доставлен.
+# B#V (Tasdiqlangan) — Smartup UI'da alohida karta YO'Q va "Все заказы" soniga
+# QO'SHILMAYDI (bugungi jarayondagi tasdiqlangan buyurtmalar). Shuning uchun WMS
+# "Barcha" ro'yxati ham B#V ni chiqarib tashlaydi → Smartup UI soni bilan mos.
+# (B#V "Ochiq buyurtmalar"da qoladi — chunki ular hali teriladi.)
+ALL_ORDER_STATUSES = ["B#N", "B#S", "B#E", "B#W", "C", "D"]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
