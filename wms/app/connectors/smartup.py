@@ -211,8 +211,11 @@ class SmartupClient:
             lines = [
                 SmartupOrderLine(
                     product_unit_id=str(ln.get("product_unit_id", "")),
-                    product_code=str(ln.get("product_code", "")),
-                    gtin=ln.get("gtin") or (ln.get("product_barcode") or None),
+                    # Ba'zi order qatorlarida product_code BO'SH keladi (masalan Karlovy
+                    # 0,33 GROUP) — lekin product_barcode = WMS smartup_product_code.
+                    # Shuning uchun kod bo'sh bo'lsa barcode'ni kod sifatida ishlatamiz.
+                    product_code=str(ln.get("product_code") or ln.get("product_barcode") or ""),
+                    gtin=ln.get("gtin") or None,
                     qty_ordered=float(ln.get("order_quant") or ln.get("quant") or ln.get("qty") or 0),
                     uom=ln.get("measure_code") or ln.get("uom", "unit"),
                     deal_id=deal_id,
