@@ -221,25 +221,29 @@ class AslBelgisiClient:
         """Mahsulotning to'liq ma'lumoti (attributes + fotosuratlar)."""
         return await self._get(f"public/api/v1/product-registry/product/{product_id}")
 
-    def first_photo_file(self, detail: dict) -> str | None:
-        """Detail attributes'dan birinchi mahsulot fotosi fileName'ini oladi
-        (front_side ustuvor, keyin boshqa tomonlar)."""
+    def photo_files(self, detail: dict) -> list[str]:
+        """Detail attributes'dan barcha mahsulot foto fileName'lari (tartiblangan:
+        front_side birinchi). Endpoint har birini navbatma-navbat sinaydi."""
         attrs = detail.get("attributes") if isinstance(detail, dict) else None
         if not isinstance(attrs, list):
-            return None
+            return []
         order = ["front_side", "upper_side", "left_side", "right_side", "back_side", "down_side", "other"]
-        photos: dict[str, str] = {}
+        photos: dict[str, list[str]] = {}
         for a in attrs:
             meta = a.get("meta") or {}
             if meta.get("type") != "FILE_LIST":
                 continue
             files = ((a.get("value") or {}).get("files")) or []
-            if files and files[0].get("fileName"):
-                photos.setdefault(meta.get("code") or "", files[0]["fileName"])
+            names = [f.get("fileName") for f in files if f.get("fileName")]
+            if names:
+                photos.setdefault(meta.get("code") or "", []).extend(names)
+        out: list[str] = []
         for code in order:
-            if photos.get(code):
-                return photos[code]
-        return next(iter(photos.values()), None)
+            out += photos.get(code, [])
+        for code, names in photos.items():
+            if code not in order:
+                out += names
+        return out
 
     async def get_product_file_b64(self, file_id: str) -> tuple[str, str] | None:
         """Mahsulot rasmini (base64, mime) qaytaradi — data-URI uchun."""
