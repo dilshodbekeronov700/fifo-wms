@@ -245,6 +245,9 @@ class AslBelgisiClient:
         """Mahsulot rasmini (base64, mime) qaytaradi — data-URI uchun."""
         import base64 as _b64
         fid = (file_id or "").strip()
+        # Endpoint {id} sof UUID kutadi — kengaytmani (.jpg) olib tashlaymiz.
+        if "." in fid:
+            fid = fid.rsplit(".", 1)[0]
         if not fid:
             return None
         async with httpx.AsyncClient(timeout=30) as client:
