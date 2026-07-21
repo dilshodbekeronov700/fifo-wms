@@ -54,7 +54,7 @@ class SmartupOrderLine:
 class SmartupOrder:
     deal_id: str
     order_number: str
-    status: str          # D / B#N / B#E / B#W / B#S / B#V / A / C
+    status: str          # D=qoralama B#N=yangi B#E=jarayonda B#W=kutilmoqda B#S=jo'natilgan B#V=YETKAZILGAN (Доставлен) · C/A faol ro'yxatda yo'q
     customer_tin: str | None
     with_marking: str | None
     customer_name: str | None = None   # person_name — UI'da ko'rsatish uchun

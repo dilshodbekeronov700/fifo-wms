@@ -25,14 +25,16 @@ import { staggerContainer } from '../lib/motion'
 type Tab = 'orders' | 'inputs' | 'movements' | 'stocktaking' | 'writeoffs' | 'svereka'
 
 // Smartup buyurtma status kodlari → tushunarli o'zbekcha yorliq + rang.
+// Status→nom xaritasi Smartup `order_list:get_widget_data` bilan tasdiqlangan (2026-07-21).
+// DIQQAT: Доставлен (Yetkazilgan) = B#V (C EMAS). C — Smartup faol ro'yxatida yo'q.
 const ORDER_STATUS: Record<string, { label: string; cls: string }> = {
   'A':   { label: 'Arxiv',              cls: 'bg-slate-100 text-slate-500' },
   'B#N': { label: 'Yangi',              cls: 'bg-emerald-100 text-emerald-700' },   // Новый
   'B#E': { label: 'Jarayonda',         cls: 'bg-amber-100 text-amber-700' },        // В обработке
-  'B#W': { label: 'Kutilmoqda',        cls: 'bg-blue-100 text-blue-700' },          // В ожидании
-  'B#V': { label: 'Tasdiqlangan',      cls: 'bg-violet-100 text-violet-700' },      // Smartup UI'da alohida karta yo'q
+  'B#W': { label: 'Kutilmoqda',        cls: 'bg-violet-100 text-violet-700' },      // В ожидании
   'B#S': { label: 'Jo\'natilgan',       cls: 'bg-indigo-100 text-indigo-700' },      // Отгружен
-  'C':   { label: 'Yetkazilgan',        cls: 'bg-rose-100 text-rose-700' },          // Доставлен
+  'B#V': { label: 'Yetkazilgan',        cls: 'bg-rose-100 text-rose-700' },          // Доставлен
+  'C':   { label: 'Yopilgan',           cls: 'bg-slate-100 text-slate-500' },        // faol ro'yxatda yo'q
   'D':   { label: 'Qoralama',           cls: 'bg-slate-100 text-slate-600' },        // Черновик
 }
 const statusBadge = (s: string) => ORDER_STATUS[s] ?? { label: s || '—', cls: 'bg-slate-100 text-slate-600' }
@@ -245,8 +247,8 @@ export default function Smartup() {
             </FilterBar>
             <p className="text-xs text-slate-400">
               {showAll
-                ? 'Barcha buyurtmalar — Smartup UI "Заказы" bilan bir xil status to\'plami (Yangi/Jarayonda/Kutilmoqda/Jo\'natilgan/Yetkazilgan/Qoralama). Arxiv (A) va bugungi «Tasdiqlangan» (B#V) — Smartup UI kabi — kirmaydi.'
-                : 'Terilishi kerak bo\'lgan ochiq buyurtmalar (Yangi + Tasdiqlangan).'}
+                ? 'Barcha buyurtmalar — Smartup UI "Заказы" bilan AYNAN bir xil status to\'plami (Yangi/Jarayonda/Kutilmoqda/Jo\'natilgan/Yetkazilgan/Qoralama). Arxiv (A) va "Yopilgan" (C) — Smartup UI kabi — kirmaydi.'
+                : 'Terilishi kerak bo\'lgan ochiq buyurtmalar (Yangi + jarayonda + kutilmoqda).'}
             </p>
             <OrdersStatusCards rows={filtered} />
             <OrdersSummary rows={filtered} />
@@ -295,13 +297,13 @@ function Empty({ loading, text }: { loading: boolean; text: string }) {
 
 // Smartup UI "Заказы" status kartalari — har holat bo'yicha soni + summasi.
 // Tartib Smartup UI kabi: Barcha → Yangi → Jarayonda → Kutilmoqda → Jo'natilgan → Yetkazilgan → Qoralama.
-const STATUS_CARD_ORDER = ['B#N', 'B#E', 'B#W', 'B#S', 'C', 'D']
+const STATUS_CARD_ORDER = ['B#N', 'B#E', 'B#W', 'B#S', 'B#V', 'D']
 const STATUS_CARD_CLS: Record<string, string> = {
   'B#N': 'border-emerald-200 bg-emerald-50 text-emerald-700',
   'B#E': 'border-amber-200 bg-amber-50 text-amber-700',
   'B#W': 'border-violet-200 bg-violet-50 text-violet-700',
   'B#S': 'border-indigo-200 bg-indigo-50 text-indigo-700',
-  'C':   'border-rose-200 bg-rose-50 text-rose-700',
+  'B#V': 'border-rose-200 bg-rose-50 text-rose-700',
   'D':   'border-slate-200 bg-slate-100 text-slate-600',
 }
 function OrdersStatusCards({ rows }: { rows: any[] }) {
@@ -462,7 +464,7 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
                         className="border border-amber-200 text-amber-700 rounded px-1.5 py-0.5 text-xs bg-amber-50">
                         <option value="">Holatni o'zgartirish…</option>
                         <option value="B#S">Jo'natilgan (B#S)</option>
-                        <option value="C">Yetkazilgan (C)</option>
+                        <option value="B#V">Yetkazilgan (B#V)</option>
                       </select>
                     </td>
                   )}

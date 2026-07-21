@@ -26,20 +26,21 @@ const ORDER_STATUS_TONE: Record<string, Tone> = {
   'B#E': 'amber',
   'B#W': 'blue',
   'B#S': 'green',
-  'B#V': 'purple',
+  'B#V': 'red',
   A: 'slate',
-  C: 'red',
+  C: 'slate',
 }
 
+// Smartup `order_list:get_widget_data` bilan tasdiqlangan (2026-07-21): B#V=Доставлен.
 const ORDER_STATUS_LABEL: Record<string, string> = {
   D: 'Qoralama',
   'B#N': 'Yangi',
-  'B#E': 'Tahrirda',
-  'B#W': "Jo'natishni kutmoqda",
+  'B#E': 'Jarayonda',
+  'B#W': "Kutilmoqda",
   'B#S': "Jo'natilgan",
-  'B#V': 'Tasdiqlangan',
+  'B#V': 'Yetkazilgan',
   A: 'Arxiv',
-  C: 'Bekor qilingan',
+  C: 'Yopilgan',
 }
 
 interface RouteStop {

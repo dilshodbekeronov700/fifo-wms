@@ -56,14 +56,17 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 #         xato kiritilgani uchun "ochiq" ro'yxat 749 gacha shishardi.
 # Terilishi kerak (ochiq) = B#N + B#V. "Barcha" ko'rinishi ham arxivni (A) chiqarib tashlaydi,
 # shunda WMS soni Smartup UI (~327) bilan mos keladi.
-OPEN_ORDER_STATUSES = ["B#N", "B#V"]
-# "Barcha" = Smartup UI "Заказы" kartalari bilan AYNAN bir xil status to'plami:
-#   D=Черновик, B#N=Новый, B#E=В обработке, B#W=В ожидании, B#S=Отгружен, C=Доставлен.
-# B#V (Tasdiqlangan) — Smartup UI'da alohida karta YO'Q va "Все заказы" soniga
-# QO'SHILMAYDI (bugungi jarayondagi tasdiqlangan buyurtmalar). Shuning uchun WMS
-# "Barcha" ro'yxati ham B#V ni chiqarib tashlaydi → Smartup UI soni bilan mos.
-# (B#V "Ochiq buyurtmalar"da qoladi — chunki ular hali teriladi.)
-ALL_ORDER_STATUSES = ["B#N", "B#S", "B#E", "B#W", "C", "D"]
+# Smartup UI `order_list:get_widget_data` javobidan TASDIQLANGAN status→nom xaritasi
+# (Chrome orqali jonli tekshirilgan, 2026-07-21):
+#   D=Черновик, B#N=Новый, B#E=В обработке, B#W=В ожидании, B#S=Отгружен,
+#   B#V=Доставлен (Yetkazilgan!).  granted_statuses = [D,B#N,B#E,B#W,B#S,B#V].
+# DIQQAT: "C" — Smartup faol "Заказы" ro'yxatida KO'RSATILMAYDI (granted emas —
+#   yopilgan/arxiv-yaqin holat). Shuning uchun WMS ham C ni chiqarib tashlaydi.
+#   (Ilgari C=Доставлен, B#V=Tasdiqlangan deb xato qilingan edi — teskari edi.)
+# "Barcha" = Smartup UI "Все заказы" bilan AYNAN bir xil to'plam → son mos keladi.
+ALL_ORDER_STATUSES = ["D", "B#N", "B#E", "B#W", "B#S", "B#V"]
+# Terilishi kerak (ochiq) = hali jo'natilmagan/yetkazilmagan: Yangi + jarayonda + kutilmoqda.
+OPEN_ORDER_STATUSES = ["B#N", "B#E", "B#W"]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
