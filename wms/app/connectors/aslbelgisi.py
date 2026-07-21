@@ -217,6 +217,30 @@ class AslBelgisiClient:
             return data.get("products", []) or []
         return data or []
 
+    async def get_product_detail(self, product_id: str) -> dict:
+        """Mahsulotning to'liq ma'lumoti (attributes + fotosuratlar)."""
+        return await self._get(f"public/api/v1/product-registry/product/{product_id}")
+
+    def first_photo_file(self, detail: dict) -> str | None:
+        """Detail attributes'dan birinchi mahsulot fotosi fileName'ini oladi
+        (front_side ustuvor, keyin boshqa tomonlar)."""
+        attrs = detail.get("attributes") if isinstance(detail, dict) else None
+        if not isinstance(attrs, list):
+            return None
+        order = ["front_side", "upper_side", "left_side", "right_side", "back_side", "down_side", "other"]
+        photos: dict[str, str] = {}
+        for a in attrs:
+            meta = a.get("meta") or {}
+            if meta.get("type") != "FILE_LIST":
+                continue
+            files = ((a.get("value") or {}).get("files")) or []
+            if files and files[0].get("fileName"):
+                photos.setdefault(meta.get("code") or "", files[0]["fileName"])
+        for code in order:
+            if photos.get(code):
+                return photos[code]
+        return next(iter(photos.values()), None)
+
     async def get_product_file_b64(self, file_id: str) -> tuple[str, str] | None:
         """Mahsulot rasmini (base64, mime) qaytaradi — data-URI uchun."""
         import base64 as _b64

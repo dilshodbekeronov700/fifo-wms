@@ -358,10 +358,23 @@ async def aslbelgisi_product_card(user: ActiveUser, db: DB, gtin: str):
     if not products:
         return {"found": False, "gtin": gtin}
     p = products[0]
+    image = None
+    try:
+        if p.get("id"):
+            detail = await client.get_product_detail(p["id"])
+            fid = client.first_photo_file(detail)
+            if fid:
+                got = await client.get_product_file_b64(fid)
+                if got:
+                    b64, mime = got
+                    image = f"data:{mime};base64,{b64}"
+    except Exception:
+        image = None
     return {
         "found": True,
         "gtin": p.get("gtin") or gtin,
         "id": p.get("id"),
+        "image": image,
         "product_name": p.get("productName") or p.get("name"),
         "status": _loc(p.get("status")),
         "status_value": (p.get("status") or {}).get("value") if isinstance(p.get("status"), dict) else p.get("status"),

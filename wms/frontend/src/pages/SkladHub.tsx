@@ -584,7 +584,10 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
                   <span>Asl Belgisi reyestri</span>
                   {abCard.status && <span className="normal-case font-semibold text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white">{nameOf(abCard.status)}</span>}
                 </div>
-                <div className="p-3 space-y-1.5">
+                <div className="p-3 space-y-2">
+                  {abCard.image && (
+                    <img src={abCard.image} alt="mahsulot" className="w-full max-h-40 object-contain rounded-lg bg-slate-50 border border-slate-100" />
+                  )}
                   <div className="font-semibold text-slate-800 text-sm">{nameOf(abCard.product_name)}</div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <Info k="Qadoq turi" v={nameOf(abCard.package_type)} />

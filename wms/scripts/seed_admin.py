@@ -8,7 +8,7 @@ Idempotent — safe to run repeatedly.
 """
 import asyncio
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.security import hash_password
 from app.db.base import AsyncSessionLocal
@@ -78,20 +78,29 @@ async def main() -> None:
                       "putaway_rules": {"categories": ["0.5L"]}},
         )
 
-        # A few locations per storage zone
-        for zone, prefix, base_x, base_y in [
-            (reserve, "A", 90, 70), (pick, "B", 90, 430),
-        ]:
-            for i in range(1, 5):
-                await get_or_create(
-                    db, Location, zone_id=zone.id, code=f"{prefix}-01-0{i}",
-                    defaults={
-                        "location_type": LocationType.PALLET,
-                        "status": LocationStatus.EMPTY,
-                        "row": prefix, "rack": 1, "tier": 1, "position": i,
-                        "max_pallets": 2, "x": base_x + i * 60, "y": base_y,
-                    },
-                )
+        # Demo yacheykalar — FAQAT ombor butunlay bo'sh bo'lsa (birinchi fresh deploy).
+        # Aks holda real stellajlar (UI/generateRack orqali yaratilgan A-01-1…F-16-6)
+        # bilan to'qnashadi va nol-padded dublikat (A-01-01…) paydo bo'lardi.
+        loc_count = (await db.execute(
+            select(func.count()).select_from(Location)
+            .join(Zone, Zone.id == Location.zone_id)
+            .where(Zone.warehouse_id == wh.id)
+        )).scalar()
+        if not loc_count:
+            for zone, prefix, base_x, base_y in [
+                (reserve, "A", 90, 70), (pick, "B", 90, 430),
+            ]:
+                for i in range(1, 7):
+                    await get_or_create(
+                        db, Location, zone_id=zone.id, code=f"{prefix}-01-{i}",
+                        defaults={
+                            "location_type": LocationType.PALLET,
+                            "status": LocationStatus.EMPTY,
+                            "row": prefix, "rack": 1, "tier": ((i - 1) // 2) + 1,
+                            "position": ((i - 1) % 2) + 1,
+                            "max_pallets": 2, "x": base_x, "y": base_y,
+                        },
+                    )
 
         # Demo products (19L + 0.5L) — category drives zone routing
         await get_or_create(
