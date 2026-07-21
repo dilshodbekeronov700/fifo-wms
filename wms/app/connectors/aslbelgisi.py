@@ -245,23 +245,21 @@ class AslBelgisiClient:
                 out += names
         return out
 
-    async def get_product_file_b64(self, file_id: str) -> tuple[str, str] | None:
-        """Mahsulot rasmini (base64, mime) qaytaradi — data-URI uchun."""
+    async def get_product_file_b64(self, file_name: str) -> tuple[str, str] | None:
+        """Mahsulot rasmini (base64, mime) qaytaradi — data-URI uchun.
+        Rasm statik xizmatdan olinadi: /xtrc-static-product/{fileName} (kengaytma
+        bilan; auth shart emas). API `/product-registry/file/{id}` bu akkauntда
+        404 beradi, statik yo'l esa ishlaydi."""
         import base64 as _b64
-        fid = (file_id or "").strip()
-        # Endpoint {id} sof UUID kutadi — kengaytmani (.jpg) olib tashlaymiz.
-        if "." in fid:
-            fid = fid.rsplit(".", 1)[0]
-        if not fid:
+        fn = (file_name or "").strip()
+        if not fn:
             return None
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                f"{self._base_url}/public/api/v1/product-registry/file/{fid}",
-                headers={"Authorization": self._headers.get("Authorization", ""),
-                         "Accept": "image/*, application/octet-stream, */*"},
-            )
+            resp = await client.get(f"{self._base_url}/xtrc-static-product/{fn}")
             resp.raise_for_status()
-            mime = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+            ext = fn.rsplit(".", 1)[-1].lower() if "." in fn else "jpg"
+            mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                    "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/jpeg")
             return _b64.b64encode(resp.content).decode(), mime
 
     # ── Codes (read) ─────────────────────────────────────────────────────────
