@@ -301,6 +301,7 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                     order_line_id=ln.order_line_id,
                     kind="unmapped_product",
                     detail=f"Mahsulot topilmadi (kod={ln.product_code}, gtin={ln.gtin}) — WMS'da mapping yo'q",
+                    product_code=ln.product_code,
                 ))
                 continue
             product_id = prod.id
@@ -312,9 +313,10 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
             issues.append(ValidationIssue(
                 order_line_id=ln.order_line_id,
                 kind="over_pick",
-                detail="Requested quantity exceeds available stock",
+                detail="So'ralgan miqdor mavjud qoldiqdan ko'p",
                 requested=ln.requested_boxes,
                 available=avail,
+                product_code=ln.product_code,
             ))
             # over-pick is flagged but we still allocate what we can (shortfall)
         if ln.product_unit_id:
@@ -358,9 +360,10 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
             issues.append(ValidationIssue(
                 order_line_id=ln.order_line_id,
                 kind="shortfall",
-                detail="Could not fully allocate requested boxes",
+                detail="So'ralgan miqdorni to'liq ajratib bo'lmadi",
                 requested=ln.requested_boxes,
                 available=ln.requested_boxes - plan.shortfall,
+                product_code=ln.product_code,
             ))
 
     # 5. Execute plans (BOOK stock) and handle partial pallets.
@@ -417,6 +420,13 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
         if prod is not None and isinstance(prod.name, dict):
             return prod.name.get("uz") or prod.name.get("ru")
         return None
+
+    # Muammolarga (shortfall/over_pick) mahsulot nomini qo'shamiz — yig'uvchiga aniq ko'rinsin.
+    oid_to_pid = {ln.order_line_id: pid for ln, pid in resolved_lines}
+    for iss in issues:
+        pid = oid_to_pid.get(iss.order_line_id)
+        if pid and pid in prod_by_id and not iss.product_name:
+            iss.product_name = _pname(prod_by_id[pid])
 
     route: list[PickStop] = []
     for al in sorted(all_allotments, key=lambda a: loc_seq.get(a.location.id, 999)):

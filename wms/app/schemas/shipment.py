@@ -94,10 +94,12 @@ class PickStop(BaseModel):
 
 class ValidationIssue(BaseModel):
     order_line_id: str
-    kind: str           # "unmapped_gtin" | "over_pick" | "shortfall"
+    kind: str           # "unmapped_gtin" | "unmapped_product" | "over_pick" | "shortfall"
     detail: str
     requested: int | None = None
     available: int | None = None
+    product_code: str | None = None     # yig'uvchiga ko'rsatish uchun (qaysi mahsulot)
+    product_name: str | None = None
 
 
 class PickTaskOut(BaseModel):
