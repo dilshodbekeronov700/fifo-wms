@@ -105,7 +105,30 @@ async def _resolve_product(
         )).scalars().first()
         if prod is not None:
             return prod
-    return await _resolve_product_by_gtin(db, tenant_id, gtin)
+    # GTIN fallback — order qatorida gtin ko'pincha YO'Q, lekin product_code o'zi GTIN
+    # bo'lishi mumkin (mas. "4780094510338" → "04780094510338"). Kod variantlarini
+    # GTIN sifatida ham sinaymiz (GTIN noyob — xato moslik xavfi past).
+    gtins: list[str] = []
+    if gtin:
+        gtins.append(gtin)
+    for c in candidates:
+        if c and c.isdigit():
+            gtins.extend([c, c.zfill(14), c.lstrip("0")])
+    seen: set[str] = set()
+    for g in gtins:
+        if not g or g in seen:
+            continue
+        seen.add(g)
+        prod = (await db.execute(
+            select(Product).where(
+                Product.tenant_id == tenant_id,
+                Product.gtin == g,
+                Product.is_active.is_(True),
+            )
+        )).scalars().first()
+        if prod is not None:
+            return prod
+    return None
 
 
 async def _available_boxes(

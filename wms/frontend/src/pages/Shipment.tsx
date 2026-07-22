@@ -71,6 +71,7 @@ export default function Shipment() {
   const activeWh = (warehouses as any[]).find((w: any) => w.id === wid)
 
   const [createdTask, setCreatedTask] = useState<PickTaskResult | null>(null)
+  const [failInfo, setFailInfo] = useState<{ message?: string; issues: Issue[] } | null>(null)
   const [activeDeal, setActiveDeal] = useState<string | null>(null)
   const builtFor = useRef<string | null>(null)
 
@@ -85,12 +86,22 @@ export default function Shipment() {
     mutationFn: (dealId: string) =>
       createPickTask({ warehouse_id: wid, smartup_deal_id: dealId }),
     onSuccess: (data: PickTaskResult) => {
+      setFailInfo(null)
       setCreatedTask(data)
       const short = data.shortfall_lines?.length ?? 0
       if (short > 0) toast(`Marshrut tuzildi — ${short} qatorda yetishmovchilik`, { icon: '⚠️' })
       else toast.success('Pick marshruti tuzildi')
     },
-    onError: (e: any) => toast.error(e.response?.data?.detail?.message ?? e.response?.data?.detail ?? 'Marshrut tuzishda xatolik'),
+    onError: (e: any) => {
+      const d = e.response?.data?.detail
+      // 422 "No pickable lines" — sababni (mapping yo'q / qoldiq yo'q) ko'rsatamiz
+      if (d && typeof d === 'object' && Array.isArray(d.issues)) {
+        setFailInfo({ message: d.message, issues: d.issues })
+      } else {
+        setFailInfo({ message: typeof d === 'string' ? d : 'Marshrut tuzishda xatolik', issues: [] })
+      }
+      toast.error(typeof d === 'string' ? d : d?.message ?? 'Marshrut tuzishda xatolik')
+    },
   })
 
   const confirmMut = useMutation({
@@ -114,6 +125,7 @@ export default function Shipment() {
     builtFor.current = dealParam
     setActiveDeal(dealParam)
     setCreatedTask(null)
+    setFailInfo(null)
     pickMut.mutate(dealParam)
     const next = new URLSearchParams(searchParams)
     next.delete('deal'); next.delete('wh')
@@ -137,8 +149,47 @@ export default function Shipment() {
         }
       />
 
+      {/* Marshrut tuzilmadi — SABABINI ko'rsatamiz (mapping yo'q / qoldiq yetmayapti) */}
+      {!createdTask && !pickMut.isPending && failInfo && (
+        <Card className="space-y-3">
+          <div className="flex items-center gap-2 text-rose-600">
+            <AlertTriangle size={18} />
+            <span className="font-semibold text-sm">Marshrut tuzilmadi{activeDeal ? ` — buyurtma ${activeDeal}` : ''}</span>
+          </div>
+          <p className="text-sm text-slate-500">
+            {failInfo.issues.length > 0
+              ? 'Buyurtmadagi hech bir qatorni terib bo\'lmadi. Sabab quyida — mahsulotni «Товары»da bog\'lang (Avto-bog\'lash) yoki qoldiqni to\'ldiring.'
+              : (failInfo.message || 'Noma\'lum xatolik.')}
+          </p>
+          {failInfo.issues.map((iss, i) => {
+            const m = ISSUE_META[iss.kind] ?? { label: iss.kind, tone: 'bg-slate-500/10 border-slate-400/40 text-slate-600' }
+            const missing = (iss.requested != null && iss.available != null) ? iss.requested - iss.available : null
+            return (
+              <div key={i} className={`rounded-xl border p-2.5 text-xs ${m.tone}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">{m.label}</span>
+                  {missing != null && missing > 0 && <span className="font-bold">−{missing} yetishmaydi</span>}
+                </div>
+                <div className="mt-1 text-slate-700">
+                  {iss.product_name || iss.product_code || iss.order_line_id}
+                  {iss.product_code && iss.product_name && <span className="text-slate-400 font-mono"> · {iss.product_code}</span>}
+                </div>
+                {(iss.requested != null || iss.available != null) && (
+                  <div className="mt-0.5 text-slate-500">So'ralgan: <b>{iss.requested ?? '?'}</b> · Mavjud: <b>{iss.available ?? '?'}</b></div>
+                )}
+                <div className="mt-0.5 text-slate-400">{iss.detail}</div>
+              </div>
+            )
+          })}
+          <div className="flex gap-2">
+            <Button variant="secondary" icon={<Cloud size={15} />} onClick={() => nav('/smartup')}>Buyurtmalar</Button>
+            <Button variant="ghost" onClick={() => nav('/products')}>Товарlarga o'tish</Button>
+          </div>
+        </Card>
+      )}
+
       {/* Marshrut hali yo'q — Smartup buyurtmalaridan boshlash */}
-      {!createdTask && !pickMut.isPending && (
+      {!createdTask && !pickMut.isPending && !failInfo && (
         <Card className="min-h-[320px] flex items-center justify-center">
           <div className="text-center max-w-md">
             <EmptyState
