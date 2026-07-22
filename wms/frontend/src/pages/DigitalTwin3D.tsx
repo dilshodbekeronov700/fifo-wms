@@ -98,6 +98,12 @@ function LayoutMap({ locations }: { locations: any[] }) {
       {/* SVG layout */}
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50">
         <svg width={SVG_W} height={SVG_H} style={{ display: 'block', minWidth: SVG_W }}>
+          <defs>
+            <marker id="arrowUp" markerWidth={8} markerHeight={8} refX={4} refY={2}
+              orient="auto" markerUnits="strokeWidth">
+              <path d="M0,6 L4,0 L8,6 Z" fill="#f59e0b" />
+            </marker>
+          </defs>
           {/* Bino konturi */}
           <rect x={PAD} y={PAD} width={m(BUILDING.w)} height={m(BUILDING.h)}
             rx={4} fill="#ffffff" stroke="#cbd5e1" strokeWidth={2} />
@@ -117,22 +123,38 @@ function LayoutMap({ locations }: { locations: any[] }) {
             )
           })}
 
-          {/* Kontekst zonalar (dok / ofis) */}
-          {CONTEXT_ZONES.map(z => (
-            <g key={z.id}>
-              <rect x={PAD + m(z.x)} y={PAD + m(z.y)} width={m(z.w)} height={m(z.h)}
-                rx={4}
-                fill={z.kind === 'dock' ? '#fff7ed' : '#f1f5f9'}
-                stroke={z.kind === 'dock' ? '#fed7aa' : '#e2e8f0'}
-                strokeWidth={1.5}
-                strokeDasharray={z.kind === 'dock' ? '6 4' : undefined} />
-              <text x={PAD + m(z.x) + m(z.w) / 2} y={PAD + m(z.y) + (z.kind === 'office' ? m(z.h) / 2 : 16)}
-                textAnchor="middle" fontSize={11} fontWeight="600"
-                fill={z.kind === 'dock' ? '#ea580c' : '#64748b'}>
-                {z.label}
-              </text>
-            </g>
-          ))}
+          {/* Kontekst zonalar (dok / ofis / ishlab chiqarish kirishi) */}
+          {CONTEXT_ZONES.map(z => {
+            if (z.kind === 'entry') {
+              // Ishlab chiqarishdan kirish — pastdan yuqoriga sariq strelka
+              const ax = PAD + m(z.x) + m(z.w) / 2
+              const ay0 = PAD + m(z.y) + m(z.h)   // past (bino chekkasi)
+              const ay1 = PAD + m(z.y) - m(1.2)    // yuqori (skladga)
+              return (
+                <g key={z.id}>
+                  <line x1={ax} y1={ay0} x2={ax} y2={ay1}
+                    stroke="#f59e0b" strokeWidth={3} markerEnd="url(#arrowUp)" />
+                  <text x={ax + m(2.4)} y={ay0 - 4} textAnchor="start"
+                    fontSize={9} fontWeight="600" fill="#d97706">{z.label}</text>
+                </g>
+              )
+            }
+            return (
+              <g key={z.id}>
+                <rect x={PAD + m(z.x)} y={PAD + m(z.y)} width={m(z.w)} height={m(z.h)}
+                  rx={4}
+                  fill={z.kind === 'dock' ? '#fff7ed' : '#f1f5f9'}
+                  stroke={z.kind === 'dock' ? '#fed7aa' : '#e2e8f0'}
+                  strokeWidth={1.5}
+                  strokeDasharray={z.kind === 'dock' ? '6 4' : undefined} />
+                <text x={PAD + m(z.x) + m(z.w) / 2} y={PAD + m(z.y) + (z.kind === 'office' ? m(z.h) / 2 : 16)}
+                  textAnchor="middle" fontSize={11} fontWeight="600"
+                  fill={z.kind === 'dock' ? '#ea580c' : '#64748b'}>
+                  {z.label}
+                </text>
+              </g>
+            )
+          })}
 
           {/* Sklad GP yozuvi */}
           <text x={PAD + m(6)} y={PAD + m(2.2)} fontSize={20} fontStyle="italic"
@@ -148,11 +170,13 @@ function LayoutMap({ locations }: { locations: any[] }) {
                 <rect x={PAD + m(seg.x) - 2} y={PAD + m(seg.y) - 2}
                   width={segW + 2} height={segH + 2} rx={3}
                   fill="none" stroke="#bfdbfe" strokeWidth={1} />
-                {/* qator yorlig'i */}
-                <text x={PAD + m(seg.x) - 6} y={PAD + m(seg.y) + segH / 2 + 3}
-                  textAnchor="end" fontSize={9} fontWeight="700" fill="#1d4ed8">
-                  {seg.row}
-                </text>
+                {/* qator yorlig'i (faqat chap chekka segmentida) */}
+                {seg.label && (
+                  <text x={PAD + m(seg.x) - 6} y={PAD + m(seg.y) + segH / 2 + 3}
+                    textAnchor="end" fontSize={11} fontWeight="700" fill="#1d4ed8">
+                    {seg.row}
+                  </text>
+                )}
               </g>
             )
           })}
@@ -194,11 +218,11 @@ function LayoutMap({ locations }: { locations: any[] }) {
             )
           })}
 
-          {/* Yo'lak strelkalari */}
-          <text x={PAD + m(BUILDING.w / 2.6)} y={PAD + m(6.6)} textAnchor="middle"
-            fontSize={9} fill="#22c55e" fontStyle="italic">← markaziy yo'lak →</text>
-          <text x={PAD + m(BUILDING.w / 2.6)} y={PAD + m(11.3)} textAnchor="middle"
-            fontSize={9} fill="#22c55e" fontStyle="italic">← markaziy yo'lak →</text>
+          {/* Markaziy vertikal yo'lak (chap va o'ng bloklar orasi) */}
+          <line x1={PAD + m(22.9)} y1={PAD + m(3.7)} x2={PAD + m(22.9)} y2={PAD + m(11.2)}
+            stroke="#22c55e" strokeWidth={1} strokeDasharray="5 4" opacity={0.5} />
+          <text x={PAD + m(22.9)} y={PAD + m(2.9)} textAnchor="middle"
+            fontSize={8} fill="#22c55e" fontStyle="italic">markaziy yo'lak</text>
         </svg>
       </div>
 
