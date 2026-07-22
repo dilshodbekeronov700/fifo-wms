@@ -76,6 +76,32 @@ async def update_warehouse(warehouse_id: uuid.UUID, body: WarehousePatch, user: 
     return wh
 
 
+@router.delete(
+    "/{warehouse_id}",
+    status_code=204,
+    dependencies=[require_permission("warehouse", "delete")],
+)
+async def delete_warehouse(warehouse_id: uuid.UUID, user: ActiveUser, db: DB):
+    """Skladni o'chirish. Ledger/hujjat/task yozuvlari sklad'ga FK bilan bog'langani
+    uchun qatorni jismonan o'chirib bo'lmaydi — sklad DEAKTIVATSIYA qilinadi
+    (ro'yxat `is_active` bo'yicha filtrlaydi, shuning uchun ko'rinmay qoladi).
+    Ichida qoldiq (qty>0) bo'lsa — bloklanadi (tasodifan yashirmaslik uchun)."""
+    from app.models.inventory import StockItem
+    wh = await _get_wh(warehouse_id, user, db)
+    has_stock = (await db.execute(
+        select(StockItem.id).where(
+            StockItem.warehouse_id == warehouse_id, StockItem.qty > 0
+        ).limit(1)
+    )).first()
+    if has_stock:
+        raise HTTPException(
+            status_code=409,
+            detail="Skladda mahsulot (qoldiq) bor — avval qoldiqni bo'shating yoki ko'chiring.",
+        )
+    wh.is_active = False
+    await db.commit()
+
+
 # ─── Zone ───────────────────────────────────────────────────────────────────
 
 @router.post(
