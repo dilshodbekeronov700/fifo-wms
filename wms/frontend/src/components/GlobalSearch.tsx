@@ -13,7 +13,7 @@ const PAGES: { label: string; to: string; kw: string }[] = [
   { label: 'Sklad', to: '/sklad', kw: 'sklad xarita' },
   { label: 'Mahsulotlar', to: '/products', kw: 'mahsulot sku tovar' },
   { label: 'Kirim', to: '/receipt', kw: 'kirim qabul priyom' },
-  { label: 'Chiqim', to: '/shipment', kw: 'chiqim jonatma otgruzka buyurtma' },
+  { label: 'Pick marshruti', to: '/shipment', kw: 'pick marshrut chiqim jonatma otgruzka buyurtma terish' },
   { label: "Ko'chirish", to: '/operations', kw: 'kochirish operatsiya' },
   { label: 'Vazifalar', to: '/tasks', kw: 'vazifa task' },
   { label: 'Analitika', to: '/analytics', kw: 'analitika hisobot' },

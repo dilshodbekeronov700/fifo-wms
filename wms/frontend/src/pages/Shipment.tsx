@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getWarehouses,
@@ -73,6 +74,10 @@ export default function Shipment() {
 
   const [selectedDeal, setSelectedDeal] = useState<string | null>(null)
   const [createdTask, setCreatedTask] = useState<PickTaskResult | null>(null)
+  // Smartup (ERP) "Buyurtmalar" sahifasidan ?deal=<id> bilan kelsa — avtomatik tanlab, marshrut tuzamiz.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const autoDeal = searchParams.get('deal')
+  const autoDone = useRef<string | null>(null)
 
   // ── Smartup orders for the selected warehouse ───────────────────────────────
   const {
@@ -131,6 +136,19 @@ export default function Shipment() {
     pickMut.mutate(order)
   }
 
+  // ?deal=<id> bilan kelinganda — buyurtmani avtomatik tanlab, marshrutni bir marta tuzamiz.
+  useEffect(() => {
+    if (!autoDeal || autoDone.current === autoDeal || orders.length === 0) return
+    const order = orders.find((o: any) => String(o.deal_id) === String(autoDeal))
+    if (!order) return
+    autoDone.current = autoDeal
+    handleSelectOrder(order)
+    // URL'ni tozalaymiz (qayta yuklanganda takror ishga tushmasin)
+    searchParams.delete('deal')
+    setSearchParams(searchParams, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDeal, orders])
+
   if (!wid) {
     return (
       <div className="p-4 lg:p-6 space-y-4 max-w-[1600px] mx-auto">
@@ -152,8 +170,8 @@ export default function Shipment() {
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-[1600px] mx-auto">
       <PageHeader
-        icon={<ArrowUpFromLine size={20} />}
-        title="Chiqim / Jo'natma"
+        icon={<Route size={20} />}
+        title="Pick marshruti"
         subtitle="Smartup buyurtmalari → Pick marshruti → Tasdiqlash"
         actions={
           <>

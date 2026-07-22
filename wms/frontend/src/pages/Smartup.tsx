@@ -4,12 +4,13 @@
  *  "Yangilash" tugmasi Smartup'dan darhol qayta tortadi.
  */
 import { useState, Fragment } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { SearchInput, FilterSelect, FilterBar } from '../components/Filters'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   RefreshCw, ArrowUpFromLine, ArrowDownToLine, GitCompareArrows, Package,
   ArrowLeftRight, ClipboardCheck, Building2, Boxes, Layers, CheckCircle2, AlertCircle,
-  ChevronRight, ChevronDown, Barcode,
+  ChevronRight, ChevronDown, Barcode, Route,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -383,6 +384,7 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
   rows: any[]; loading: boolean; canWrite?: boolean; onChanged?: () => void
 }) {
   const [open, setOpen] = useState<string | null>(null)
+  const nav = useNavigate()
   if (!rows.length) return <Empty loading={loading} text="Buyurtma topilmadi" />
   // ERP'ga status yuborish — OGOHLANTIRISH bilan.
   const changeStatus = async (o: any, newStatus: string) => {
@@ -457,7 +459,15 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
                   <td className="px-3 py-1.5">
                     <span className={`text-xs rounded px-1.5 py-0.5 ${b.cls}`}>{b.label}</span>
                   </td>
-                  <td className="px-3 py-1.5 text-right">{o.lines?.length ?? 0} ta</td>
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                    <span className="text-slate-500">{o.lines?.length ?? 0} ta</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); nav(`/shipment?deal=${encodeURIComponent(o.deal_id)}`) }}
+                      title="Bu buyurtma uchun pick marshrutini tuzish"
+                      className="ml-2 inline-flex items-center gap-1 text-xs rounded-md border border-blue-200 bg-blue-50 text-blue-700 px-2 py-0.5 hover:bg-blue-100 transition">
+                      <Route size={12} /> Pick
+                    </button>
+                  </td>
                   {canWrite && (
                     <td className="px-3 py-1.5 text-right" onClick={e => e.stopPropagation()}>
                       <select defaultValue="" onChange={e => { if (e.target.value) { changeStatus(o, e.target.value); e.target.value = '' } }}

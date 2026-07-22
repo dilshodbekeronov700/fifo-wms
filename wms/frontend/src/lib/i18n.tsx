@@ -13,7 +13,7 @@ const DICT: Record<string, Record<Locale, string>> = {
   'nav.products': { ru: 'Товары', uz: 'Mahsulotlar', en: 'Products' },
   'nav.stock': { ru: 'Остатки', uz: 'Qoldiqlar', en: 'Stock' },
   'nav.receipt': { ru: 'Приёмка', uz: 'Kirim', en: 'Receipt' },
-  'nav.shipment': { ru: 'Отгрузка', uz: 'Chiqim', en: 'Shipment' },
+  'nav.shipment': { ru: 'Pick marshruti', uz: 'Pick marshruti', en: 'Pick route' },
   'nav.move': { ru: 'Перемещение', uz: "Ko'chirish", en: 'Move' },
   'nav.tasks': { ru: 'Задачи', uz: 'Vazifalar', en: 'Tasks' },
   'nav.analytics': { ru: 'Аналитика', uz: 'Analitika', en: 'Analytics' },
