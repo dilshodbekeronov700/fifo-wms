@@ -5,7 +5,7 @@ from app.api.v1.endpoints import (
     receipt, putaway, stock, shipment, operations,
     analytics, connectors, exceptions, quarantine,
     labels, realtime, slotting_config, admin, admin_users, export, billing, sensors,
-    replenishment, cycle_count, wave, rma,
+    replenishment, cycle_count, wave, rma, tasks, documents,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -34,3 +34,5 @@ api_router.include_router(replenishment.router)
 api_router.include_router(cycle_count.router)
 api_router.include_router(wave.router)
 api_router.include_router(rma.router)
+api_router.include_router(tasks.router)
+api_router.include_router(documents.router)
