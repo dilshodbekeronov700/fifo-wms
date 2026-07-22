@@ -10,7 +10,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connector_factory import (
@@ -65,11 +65,75 @@ def _normalize_receipt_item(it: dict) -> dict:
         "quantity": _num(_first(it, "quant", "quantity", "input_quant", "purchase_quant", "qty")),
         "uom": _first(it, "measure_code", "measure", "uom"),
         "price": _num(_first(it, "price", "input_price", "purchase_price")),
-        "total": _num(_first(it, "total_value", "margin_value", "total_margin_value", "summa", "amount")),
+        # DIQQAT: `margin_value`/`total_margin_value` — наценка (0 bo'lishi normal),
+        # qator SUMMASI emas. Ularni bu yerda OLMAYMIZ (aks holda Summa=0 chiqadi).
+        # Xom summa bo'lmasa keyin narx×miqdor hisoblanadi (_enrich_receipt_items).
+        "total": _num(_first(it, "total_value", "sold_amount", "summa", "amount", "value")),
         "series_number": _first(it, "series_number", "series", "batch_number", "party_number"),
         "production_date": _first(it, "production_date", "manufacture_date"),
         "expiry_date": _first(it, "expiry_date", "expiration_date", "expire_date"),
     }
+
+
+def _product_display_name(prod: Product) -> str | None:
+    """WMS Product nomi (JSON uz/ru/en yoki oddiy string)."""
+    n = prod.name
+    if isinstance(n, dict):
+        return n.get("uz") or n.get("ru") or n.get("en")
+    return n or None
+
+
+async def _enrich_receipt_docs(db: AsyncSession, tenant_id, docs: list[dict]) -> None:
+    """Kirim/xarid hujjatlarini WMS Product'dan boyitamiz (Smartup qatorlarida
+    faqat kod bor — nom/GTIN yo'q) va summalarni to'ldiramiz:
+      · qator summasi bo'sh bo'lsa → narx × miqdor
+      · hujjat summasi bo'sh bo'lsa → qatorlar yig'indisi
+    Kodlar bo'yicha BITTA so'rovda Product'larni olamiz (N+1 emas)."""
+    codes: set[str] = set()
+    for doc in docs:
+        for it in doc.get("items", []):
+            c = it.get("product_code")
+            if c:
+                codes.add(c)
+                if "_" in c:
+                    codes.add(c.split("_")[0])
+    by_code: dict[str, Product] = {}
+    by_gtin: dict[str, Product] = {}
+    if codes:
+        res = await db.execute(
+            select(Product).where(
+                Product.tenant_id == tenant_id,
+                or_(Product.smartup_product_code.in_(codes), Product.gtin.in_(codes)),
+            )
+        )
+        for prod in res.scalars():
+            if prod.smartup_product_code:
+                by_code.setdefault(prod.smartup_product_code, prod)
+            if prod.gtin:
+                by_gtin.setdefault(prod.gtin, prod)
+
+    def _lookup(code: str) -> Product | None:
+        return (by_code.get(code) or by_gtin.get(code)
+                or (by_code.get(code.split("_")[0]) or by_gtin.get(code.split("_")[0]) if "_" in code else None))
+
+    for doc in docs:
+        line_sum = 0.0
+        any_line_total = False
+        for it in doc.get("items", []):
+            prod = _lookup(it.get("product_code") or "")
+            if prod is not None:
+                if not it.get("product_name"):
+                    it["product_name"] = _product_display_name(prod)
+                if not it.get("gtin"):
+                    it["gtin"] = prod.gtin
+            # Xom summa bo'lmasa (None/0) — narx × miqdor
+            if not it.get("total") and it.get("price") is not None and it.get("quantity") is not None:
+                it["total"] = round(it["price"] * it["quantity"], 2)
+            if it.get("total"):
+                line_sum += it["total"]
+                any_line_total = True
+        if not doc.get("total") and any_line_total:
+            doc["total"] = round(line_sum, 2)
 
 
 @router.get(
@@ -107,10 +171,11 @@ async def production_inputs(
             "status_code": _first(p, "status_code", "status"),
             "posted": p.get("posted"),
             "note": _first(p, "note", "comment"),
-            "total": _num(_first(p, "total_value", "total_margin_value")),
+            "total": _num(_first(p, "total_value", "total_amount", "summa")),
             "lines": len(items),
             "items": [_normalize_receipt_item(it) for it in items],
         })
+    await _enrich_receipt_docs(db, user.tenant_id, inputs_out)
     return {"count": len(inputs_out), "inputs": inputs_out}
 
 
@@ -155,9 +220,10 @@ async def purchases(
             "posted": p.get("posted"),
             "note": _first(p, "note", "comment"),
             "lines": len(items),
-            "total": _num(_first(p, "total_margin_value", "total_value")),
+            "total": _num(_first(p, "total_value", "total_amount", "summa")),
             "items": [_normalize_receipt_item(it) for it in items],
         })
+    await _enrich_receipt_docs(db, user.tenant_id, purchases_out)
     return {"count": len(purchases_out), "purchases": purchases_out}
 
 

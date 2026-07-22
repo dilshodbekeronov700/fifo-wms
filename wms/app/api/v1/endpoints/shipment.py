@@ -199,6 +199,10 @@ async def get_shipment_orders(
             pname = None
             if prod is not None and isinstance(prod.name, dict):
                 pname = prod.name.get("uz") or prod.name.get("ru")
+            # Qator summasi Smartup'da bo'lmasa — narx × miqdor (Smartup UI "Сумма" bilan mos).
+            sold = ln.sold_amount
+            if not sold and ln.product_price is not None and ln.qty_ordered is not None:
+                sold = round(ln.product_price * ln.qty_ordered, 2)
             lines.append(ShipmentOrderLine(
                 product_unit_id=ln.product_unit_id,
                 product_code=ln.product_code,
@@ -214,7 +218,7 @@ async def get_shipment_orders(
                 vat_percent=ln.vat_percent,
                 batch_number=ln.batch_number,
                 warehouse_code=ln.warehouse_code,
-                sold_amount=ln.sold_amount,
+                sold_amount=sold,
             ))
         out.append(ShipmentOrder(
             deal_id=o.deal_id,
