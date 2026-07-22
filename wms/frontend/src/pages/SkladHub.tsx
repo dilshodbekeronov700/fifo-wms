@@ -11,7 +11,7 @@
 import { useMemo, useRef, useState, lazy, Suspense } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  getWarehouses, getZones, getAllLocations,
+  getWarehouses, getZones, createZone, getAllLocations,
   updateLocationById, deleteLocationById, generateRack, setRackCells,
   bulkCreateLocations, getReservations, getLocationContents, fetchLocationCodeTree,
   getProductByGtin, getAslBelgisiProductCard,
@@ -37,6 +37,17 @@ const STATUS_LABEL: Record<string, string> = {
 const NEXT_STATUS: Record<string, string> = {
   empty: 'occupied', occupied: 'blocked', blocked: 'empty', partial: 'empty',
 }
+// Zona turlari — «Zonalar» sahifasi bilan bir xil (bu yerda faqat nom+tur, qoidalar u yerda).
+const ZONE_TYPES: { value: string; label: string }[] = [
+  { value: 'reserve', label: 'Zaxira' },
+  { value: 'pick', label: 'Terish' },
+  { value: 'open_pallet', label: 'Ochiq pallet' },
+  { value: 'staging', label: 'Qabul (staging)' },
+  { value: 'dock', label: "Jo'natish (dock)" },
+  { value: 'quarantine', label: 'Karantin' },
+  { value: 'return', label: 'Qaytarish' },
+]
+const zoneTypeLabel = (t: string) => ZONE_TYPES.find(z => z.value === t)?.label ?? t
 
 type Loc = {
   id: string; code: string; zone_id: string; status: string
@@ -412,7 +423,7 @@ export default function SkladHub() {
             </div>
           )}
           {!editMode && selCell && (
-            <CellInspector key={selCell.wid + selCell.code} cell={selCell} onClose={() => setSelCode(null)} />
+            <CellInspector key={selCell.wid + selCell.code} cell={selCell} onClose={() => setSelCode(null)} onSaved={reload} />
           )}
         </div>
       )}
@@ -481,7 +492,7 @@ export default function SkladHub() {
 }
 
 // ─── Cell inspector (view mode) — Asl Belgisi kod daraxti + qoldiq + bron ────
-function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
+function CellInspector({ cell, onClose, onSaved }: { cell: Cell; onClose: () => void; onSaved: () => void }) {
   // Rack ichidagi yacheykalar (etaj/joy bo'yicha tartiblab). Default — band bo'lgani,
   // aks holda birinchisi. Foydalanuvchi har yacheykani tanlab ko'ra oladi.
   const orderedSlots = [...cell.slots].sort((a, b) =>
@@ -556,6 +567,9 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
         <div className="flex-1 overflow-auto grid md:grid-cols-2 gap-0">
           {/* CHAP: mahsulot kartochkasi + qoldiq + bron */}
           <div className="p-5 space-y-4 border-r border-slate-100">
+            {/* Zona biriktirish — mavjud zonani tanlang yoki yangisini qo'shing */}
+            <ZoneAssign cell={cell} onSaved={onSaved} />
+
             {isLoading && <div className="text-sm text-slate-400 py-4">Yuklanmoqda…</div>}
             {isError && <div className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">Ma'lumot yuklanmadi.</div>}
 
@@ -641,6 +655,83 @@ function CellInspector({ cell, onClose }: { cell: Cell; onClose: () => void }) {
               : <div className="text-xs text-slate-400">Kod biriktirilmagan — kod qo'yilgach "Yuklash" bilan daraxtni torting.</div>}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Zona biriktirish — katakni (butun stellajni) zonaga bog'lash + yangi zona ─
+function ZoneAssign({ cell, onSaved }: { cell: Cell; onSaved: () => void }) {
+  const { data: zones = [], refetch } = useQuery({
+    queryKey: ['zones', cell.wid], queryFn: () => getZones(cell.wid), enabled: !!cell.wid,
+  })
+  const zl = zones as any[]
+  const currentId = cell.slots[0]?.zone_id ?? cell.zone_id
+  const current = zl.find(z => z.id === currentId)
+  const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newType, setNewType] = useState('reserve')
+
+  const assign = async (zoneId: string) => {
+    if (!zoneId || zoneId === currentId) return
+    setBusy(true)
+    try {
+      for (const s of cell.slots) await updateLocationById(cell.wid, s.id, { zone_id: zoneId })
+      toast.success('Zona biriktirildi'); onSaved()
+    } catch (e: any) { toast.error(e?.response?.data?.detail ?? 'Xatolik') }
+    finally { setBusy(false) }
+  }
+  const createAndAssign = async () => {
+    const nm = newName.trim()
+    if (!nm) { toast.error('Zona nomini kiriting'); return }
+    setBusy(true)
+    try {
+      const z = await createZone(cell.wid, { name: nm, zone_type: newType, allow_mixed: false })
+      await refetch()
+      for (const s of cell.slots) await updateLocationById(cell.wid, s.id, { zone_id: z.id })
+      toast.success('Zona yaratildi va biriktirildi')
+      setAdding(false); setNewName(''); onSaved()
+    } catch (e: any) { toast.error(e?.response?.data?.detail ?? 'Xatolik') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-3 py-1.5 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center justify-between">
+        <span className="flex items-center gap-1.5"><LayoutGrid size={12} /> Zona</span>
+        {current && <span className="normal-case font-semibold text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600">{zoneTypeLabel(current.zone_type)}</span>}
+      </div>
+      <div className="p-3 space-y-2">
+        <select className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white disabled:opacity-50"
+          value={currentId ?? ''} disabled={busy} onChange={e => assign(e.target.value)}>
+          {!current && <option value="">— zona tanlang —</option>}
+          {zl.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+        </select>
+        <div className="text-[10px] text-slate-400">Butun stellajga ({cell.slots.length} yacheyka) biriktiriladi. Qoidalar «Zonalar» bo'limida.</div>
+        {adding ? (
+          <div className="space-y-1.5 pt-1 border-t border-slate-100">
+            <input autoFocus className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm" placeholder="Yangi zona nomi"
+              value={newName} onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') createAndAssign() }} />
+            <select className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+              value={newType} onChange={e => setNewType(e.target.value)}>
+              {ZONE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <div className="flex gap-1.5">
+              <button onClick={createAndAssign} disabled={busy}
+                className="flex-1 bg-blue-600 text-white text-xs py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                Yaratish + biriktirish
+              </button>
+              <button onClick={() => { setAdding(false); setNewName('') }}
+                className="px-2 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50">Bekor</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700">
+            <Plus size={12} /> Yangi zona
+          </button>
+        )}
       </div>
     </div>
   )
