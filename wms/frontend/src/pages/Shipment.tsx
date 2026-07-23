@@ -253,6 +253,7 @@ export default function Shipment() {
                             So'ralgan: <b>{iss.requested ?? '?'}</b> · Mavjud: <b>{iss.available ?? '?'}</b>
                           </div>
                         )}
+                        {iss.detail && <div className="mt-0.5 text-slate-400">{iss.detail}</div>}
                       </div>
                     )
                   })}

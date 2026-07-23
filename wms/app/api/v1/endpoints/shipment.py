@@ -25,8 +25,8 @@ from app.core.deps import (
     ActiveUser, ensure_warehouse_access, get_db, require_permission,
 )
 from app.models.inventory import (
-    Document, DocumentStatus, DocumentType, MarkingCode, PackageType, Product,
-    StockItem, StockStatus,
+    Batch, BatchStatus, Document, DocumentStatus, DocumentType, MarkingCode,
+    PackageType, Product, StockItem, StockStatus,
 )
 from app.models.task import Task, TaskStatus, TaskType
 from app.schemas.shipment import (
@@ -143,6 +143,34 @@ async def _available_boxes(
         )
     )
     return int(res.scalar_one() or 0)
+
+
+async def _blocked_batches_note(
+    db: AsyncSession, *, warehouse_id: uuid.UUID, product_id: uuid.UUID
+) -> str | None:
+    """Jismonan bor (StockItem AVAILABLE) lekin PARTIYA holati sabab terib bo'lmaydigan
+    qoldiqni holat bo'yicha yig'ib, tushunarli izoh qaytaradi (karantin/bloklangan/
+    muddati o'tgan). Qoldiqlar 'available' ko'rsatib, pick 0 bergan holatni ochib beradi."""
+    rows = (await db.execute(
+        select(Batch.status, func.sum(StockItem.qty - StockItem.qty_booked))
+        .join(Batch, Batch.id == StockItem.batch_id)
+        .where(
+            StockItem.warehouse_id == warehouse_id,
+            StockItem.product_id == product_id,
+            StockItem.status == StockStatus.AVAILABLE,
+            (StockItem.qty - StockItem.qty_booked) > 0,
+            Batch.status != BatchStatus.AVAILABLE,
+        )
+        .group_by(Batch.status)
+    )).all()
+    LBL = {"quarantine": "karantin", "blocked": "bloklangan", "expired": "muddati o'tgan"}
+    parts = [
+        f"{int(q)} dona {LBL.get(getattr(s, 'value', s), getattr(s, 'value', s))}"
+        for s, q in rows if q
+    ]
+    if not parts:
+        return None
+    return "Omborda bor, lekin partiya holati sabab terilmaydi: " + ", ".join(parts)
 
 
 async def _availability_map(
@@ -380,10 +408,17 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
         plans.append(plan)
         if plan.shortfall > 0:
             shortfall_lines.append(ln.order_line_id)
+            # Nega yetmayapti? Jismonan bor, lekin partiya bloklangan bo'lishi mumkin.
+            blocked_note = await _blocked_batches_note(
+                db, warehouse_id=body.warehouse_id, product_id=product_id
+            )
+            detail = "So'ralgan miqdorni to'liq ajratib bo'lmadi"
+            if blocked_note:
+                detail += f" — {blocked_note}"
             issues.append(ValidationIssue(
                 order_line_id=ln.order_line_id,
                 kind="shortfall",
-                detail="So'ralgan miqdorni to'liq ajratib bo'lmadi",
+                detail=detail,
                 requested=ln.requested_boxes,
                 available=ln.requested_boxes - plan.shortfall,
                 product_code=ln.product_code,
