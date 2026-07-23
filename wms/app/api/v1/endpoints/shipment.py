@@ -132,14 +132,37 @@ async def _resolve_product(
     return None
 
 
+async def _sibling_product_ids(
+    db: AsyncSession, *, tenant_id: uuid.UUID, product_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """Bir savdo-birligining barcha mahsulot yozuvlari (GROUP/UNIT/BOX) — GTIN-14 ning
+    o'rta 12 raqami (savdo birligi) bir xil bo'lganlar. Buyurtma UNIT yozuviga, qoldiq
+    esa GROUP yozuviga bog'langan bo'lsa ham pick topa oladi (receiving shu negizni
+    ishlatadi)."""
+    ids: set[uuid.UUID] = {product_id}
+    prod = await db.get(Product, product_id)
+    gtin = getattr(prod, "gtin", None) if prod else None
+    if gtin and len(gtin) == 14 and gtin.isdigit():
+        middle = gtin[1:13]
+        rows = (await db.execute(
+            select(Product.id).where(
+                Product.tenant_id == tenant_id,
+                Product.is_active.is_(True),
+                Product.gtin.like(f"_{middle}_"),
+            )
+        )).scalars().all()
+        ids.update(rows)
+    return list(ids)
+
+
 async def _available_boxes(
-    db: AsyncSession, *, warehouse_id: uuid.UUID, product_id: uuid.UUID
+    db: AsyncSession, *, warehouse_id: uuid.UUID, product_ids: list[uuid.UUID]
 ) -> int:
-    """Bitta SKU uchun bo'sh qoldiq (pick-task validatsiyasida — kichik N)."""
+    """SKU (va uning GROUP/UNIT birodar yozuvlari) uchun bo'sh qoldiq."""
     res = await db.execute(
         select(func.coalesce(func.sum(StockItem.qty - StockItem.qty_booked), 0)).where(
             StockItem.warehouse_id == warehouse_id,
-            StockItem.product_id == product_id,
+            StockItem.product_id.in_(product_ids),
             StockItem.status == StockStatus.AVAILABLE,
         )
     )
@@ -147,7 +170,7 @@ async def _available_boxes(
 
 
 async def _blocked_batches_note(
-    db: AsyncSession, *, warehouse_id: uuid.UUID, product_id: uuid.UUID
+    db: AsyncSession, *, warehouse_id: uuid.UUID, product_ids: list[uuid.UUID]
 ) -> str | None:
     """Jismonan bor (StockItem AVAILABLE) lekin PARTIYA holati sabab terib bo'lmaydigan
     qoldiqni holat bo'yicha yig'ib, tushunarli izoh qaytaradi (karantin/bloklangan/
@@ -157,7 +180,7 @@ async def _blocked_batches_note(
         .join(Batch, Batch.id == StockItem.batch_id)
         .where(
             StockItem.warehouse_id == warehouse_id,
-            StockItem.product_id == product_id,
+            StockItem.product_id.in_(product_ids),
             StockItem.status == StockStatus.AVAILABLE,
             (StockItem.qty - StockItem.qty_booked) > 0,
             Batch.status != BatchStatus.AVAILABLE,
@@ -376,6 +399,7 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
 
     # 2. Resolve product_id (GTIN→SKU) + validate availability per line.
     resolved_lines: list[tuple[OrderLineIn, uuid.UUID]] = []
+    sib_cache: dict[uuid.UUID, list[uuid.UUID]] = {}   # product_id → GROUP/UNIT birodar yozuvlar
     for ln in lines:
         product_id = ln.product_id
         if product_id is None:
@@ -392,8 +416,12 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                 continue
             product_id = prod.id
 
+        if product_id not in sib_cache:
+            sib_cache[product_id] = await _sibling_product_ids(
+                db, tenant_id=user.tenant_id, product_id=product_id
+            )
         avail = await _available_boxes(
-            db, warehouse_id=body.warehouse_id, product_id=product_id
+            db, warehouse_id=body.warehouse_id, product_ids=sib_cache[product_id]
         )
         if ln.requested_boxes > avail:
             issues.append(ValidationIssue(
@@ -441,13 +469,15 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
             product_id=product_id,
             order_line_id=ln.order_line_id,
             requested_boxes=ln.requested_boxes,
+            stock_product_ids=sib_cache.get(product_id) or [product_id],
         )
         plans.append(plan)
         if plan.shortfall > 0:
             shortfall_lines.append(ln.order_line_id)
             # Nega yetmayapti? Jismonan bor, lekin partiya bloklangan bo'lishi mumkin.
             blocked_note = await _blocked_batches_note(
-                db, warehouse_id=body.warehouse_id, product_id=product_id
+                db, warehouse_id=body.warehouse_id,
+                product_ids=sib_cache.get(product_id) or [product_id],
             )
             detail = "So'ralgan miqdorni to'liq ajratib bo'lmadi"
             if blocked_note:
@@ -507,7 +537,7 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
     loc_seq = {stop.location.id: stop.sequence for stop in route_stops}
 
     # Yig'ish varag'ida ko'rsatish uchun mahsulot nomi/kodini oldindan yuklaymiz.
-    prod_ids = {pid for _, pid in resolved_lines}
+    prod_ids = {pid for _, pid in resolved_lines} | {al.stock_item.product_id for al in all_allotments}
     prod_by_id: dict[uuid.UUID, Product] = {}
     if prod_ids:
         res = await db.execute(select(Product).where(Product.id.in_(prod_ids)))
@@ -572,9 +602,12 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
     # Tanlangan skladda hech narsa terilmasa — tovarlar boshqa skladda bo'lishi mumkin.
     alt_warehouse = None
     if not route:
+        all_sibs: set[uuid.UUID] = set()
+        for _, pid in resolved_lines:
+            all_sibs.update(sib_cache.get(pid) or [pid])
         alt_warehouse = await _alt_warehouse_with_stock(
             db, tenant_id=user.tenant_id, exclude_wh=body.warehouse_id,
-            product_ids={pid for _, pid in resolved_lines},
+            product_ids=all_sibs,
         )
 
     return PickTaskOut(

@@ -59,13 +59,19 @@ async def build_pick_plan(
     product_id: uuid.UUID,
     order_line_id: str,
     requested_boxes: int,
+    stock_product_ids: list[uuid.UUID] | None = None,
 ) -> PickPlan:
     """
     Build a FEFO/FIFO pick plan for one order line.
     Returns allotments + remaining shortfall.
+
+    `stock_product_ids` — qoldiqni qidirishda hisobga olinadigan mahsulot yozuvlari
+    (bir savdo-birligining turli qadoq/GTIN yozuvlari — GROUP/UNIT). Berilmasa
+    faqat `product_id` ishlatiladi.
     """
+    ids = stock_product_ids or [product_id]
     # 1. Load available stock sorted by FEFO then FIFO
-    stock_rows = await _load_available_stock(db, warehouse_id=warehouse_id, product_id=product_id)
+    stock_rows = await _load_available_stock(db, warehouse_id=warehouse_id, product_ids=ids)
 
     remaining = requested_boxes
     allotments: list[AllotmentLine] = []
@@ -84,8 +90,9 @@ async def build_pick_plan(
 
         is_partial = (take < available_boxes) or stock.pallet_open
 
-        # Collect marking codes for the boxes being picked (GROUP level)
-        codes = await _get_group_codes(db, location_id=stock.location_id, product_id=product_id, limit=take)
+        # Collect marking codes for the boxes being picked (GROUP level).
+        # Qoldiq qaysi mahsulot yozuvida bo'lsa (GROUP/UNIT) — o'shaniki bo'yicha.
+        codes = await _get_group_codes(db, location_id=stock.location_id, product_id=stock.product_id, limit=take)
 
         allotments.append(
             AllotmentLine(
@@ -160,7 +167,7 @@ async def execute_pick_plan(
             warehouse_id=warehouse_id,
             action=LedgerAction.BOOK,
             qty_delta=-al.take_qty,
-            product_id=plan.order_line_product_id,
+            product_id=stock.product_id,   # qoldiq qaysi mahsulot yozuvida bo'lsa — o'sha
             batch_id=stock.batch_id,
             from_location_id=stock.location_id,
             user_id=user_id,
@@ -340,7 +347,7 @@ async def _load_available_stock(
     db: AsyncSession,
     *,
     warehouse_id: uuid.UUID,
-    product_id: uuid.UUID,
+    product_ids: list[uuid.UUID],
 ):
     """
     Returns (StockItem, Batch|None, Location, Zone) ordered by:
@@ -355,7 +362,7 @@ async def _load_available_stock(
         .outerjoin(Batch, Batch.id == StockItem.batch_id)
         .where(
             StockItem.warehouse_id == warehouse_id,
-            StockItem.product_id == product_id,
+            StockItem.product_id.in_(product_ids),
             StockItem.status == StockStatus.AVAILABLE,
             (StockItem.qty - StockItem.qty_booked) > 0,
             # FEFO/FIFO faqat AVAILABLE partiyadan teradi. Karantin / bloklangan /
