@@ -337,6 +337,7 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                 order_line_id=f"{order.deal_id}:{ln.product_unit_id or idx}",
                 gtin=ln.gtin,
                 product_code=ln.product_code,
+                product_name=ln.product_name,
                 product_unit_id=ln.product_unit_id,
                 requested_boxes=int(ln.qty_ordered),
             ))
@@ -353,6 +354,8 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                     kind="unmapped_product",
                     detail=f"Mahsulot topilmadi (kod={ln.product_code}, gtin={ln.gtin}) — WMS'da mapping yo'q",
                     product_code=ln.product_code,
+                    product_name=ln.product_name,
+                    gtin=ln.gtin,
                 ))
                 continue
             product_id = prod.id
@@ -368,6 +371,8 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                 requested=ln.requested_boxes,
                 available=avail,
                 product_code=ln.product_code,
+                product_name=ln.product_name,
+                gtin=ln.gtin,
             ))
             # over-pick is flagged but we still allocate what we can (shortfall)
         if ln.product_unit_id:
@@ -422,6 +427,8 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                 requested=ln.requested_boxes,
                 available=ln.requested_boxes - plan.shortfall,
                 product_code=ln.product_code,
+                product_name=ln.product_name,
+                gtin=ln.gtin,
             ))
 
     # 5. Execute plans (BOOK stock) and handle partial pallets.

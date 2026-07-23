@@ -65,6 +65,7 @@ class OrderLineIn(BaseModel):
     product_id: uuid.UUID | None = None
     gtin: str | None = None
     product_code: str | None = None       # Smartup product_code (asosiy mapping kaliti)
+    product_name: str | None = None       # Smartup nomi (mapping yo'q qatorларni ko'rsatish uchun)
     product_unit_id: str | None = None
     requested_boxes: int
 
@@ -100,6 +101,7 @@ class ValidationIssue(BaseModel):
     available: int | None = None
     product_code: str | None = None     # yig'uvchiga ko'rsatish uchun (qaysi mahsulot)
     product_name: str | None = None
+    gtin: str | None = None
 
 
 class PickTaskOut(BaseModel):

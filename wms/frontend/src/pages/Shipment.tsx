@@ -41,6 +41,7 @@ interface Issue {
   available?: number
   product_code?: string
   product_name?: string
+  gtin?: string
 }
 
 interface PickTaskResult {
@@ -174,6 +175,7 @@ export default function Shipment() {
                   {iss.product_name || iss.product_code || iss.order_line_id}
                   {iss.product_code && iss.product_name && <span className="text-slate-400 font-mono"> · {iss.product_code}</span>}
                 </div>
+                {iss.gtin && <div className="text-[11px] font-mono text-slate-400">GTIN {iss.gtin}</div>}
                 {(iss.requested != null || iss.available != null) && (
                   <div className="mt-0.5 text-slate-500">So'ralgan: <b>{iss.requested ?? '?'}</b> · Mavjud: <b>{iss.available ?? '?'}</b></div>
                 )}
@@ -248,6 +250,7 @@ export default function Shipment() {
                           {iss.product_name || iss.product_code || iss.order_line_id}
                           {iss.product_code && iss.product_name && <span className="text-slate-400 font-mono"> · {iss.product_code}</span>}
                         </div>
+                        {iss.gtin && <div className="text-[11px] font-mono text-slate-400">GTIN {iss.gtin}</div>}
                         {(iss.requested != null || iss.available != null) && (
                           <div className="mt-0.5 text-slate-500">
                             So'ralgan: <b>{iss.requested ?? '?'}</b> · Mavjud: <b>{iss.available ?? '?'}</b>
