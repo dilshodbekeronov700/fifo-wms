@@ -420,21 +420,9 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
             sib_cache[product_id] = await _sibling_product_ids(
                 db, tenant_id=user.tenant_id, product_id=product_id
             )
-        avail = await _available_boxes(
-            db, warehouse_id=body.warehouse_id, product_ids=sib_cache[product_id]
-        )
-        if ln.requested_boxes > avail:
-            issues.append(ValidationIssue(
-                order_line_id=ln.order_line_id,
-                kind="over_pick",
-                detail="So'ralgan miqdor mavjud qoldiqdan ko'p",
-                requested=ln.requested_boxes,
-                available=avail,
-                product_code=ln.product_code,
-                product_name=ln.product_name,
-                gtin=ln.gtin,
-            ))
-            # over-pick is flagged but we still allocate what we can (shortfall)
+        # Mavjudlikni bu yerda ALOHIDA "over_pick" sifatida bermaymiz — u pastdagi
+        # "shortfall" bilan ustma-ust tushib, har qatorni IKKI marta ko'rsatardi.
+        # Yetishmovchilik reja tuzilgach aniq hisoblanadi (bitta, aniq xabar).
         if ln.product_unit_id:
             line_product_unit[ln.order_line_id] = ln.product_unit_id
         resolved_lines.append((ln, product_id))
