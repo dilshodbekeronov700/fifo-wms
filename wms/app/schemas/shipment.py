@@ -111,6 +111,8 @@ class PickTaskOut(BaseModel):
     shortfall_lines: list[str]          # order_line_ids with qty shortfall
     issues: list[ValidationIssue] = []
     route: list[PickStop] = []
+    # Tanlangan skladda qoldiq bo'lmasa — tovarlar QAYSI skladda borligi (bir bosishda o'tish uchun)
+    alt_warehouse: dict | None = None
 
 
 # ── Scan validation (TSD) ────────────────────────────────────────────────────

@@ -50,6 +50,7 @@ interface PickTaskResult {
   route?: RouteStop[]
   shortfall_lines?: string[]
   issues?: Issue[]
+  alt_warehouse?: { id: string; name: string; skus: number } | null
 }
 
 const ISSUE_META: Record<string, { label: string; tone: string }> = {
@@ -219,6 +220,24 @@ export default function Shipment() {
           <p className="text-sm text-slate-500 flex items-center gap-2">
             <Route size={16} className="animate-pulse text-blue-500" /> Marshrut tuzilmoqda…
           </p>
+        </Card>
+      )}
+
+      {/* Tanlangan skladda qoldiq yo'q, lekin boshqa skladda bor — bir bosishda o'tish */}
+      {createdTask && (createdTask.route ?? []).length === 0 && createdTask.alt_warehouse && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-blue-500/30 bg-blue-500/5">
+          <div className="text-sm text-slate-700 flex items-center gap-2">
+            <MapPin size={16} className="text-blue-500" />
+            Bu skladda qoldiq yo'q. Tovarlar <b>«{createdTask.alt_warehouse.name}»</b> skladida bor
+            ({createdTask.alt_warehouse.skus} SKU).
+          </div>
+          <Button size="sm" icon={<Route size={14} />} onClick={() => {
+            const alt = createdTask.alt_warehouse!
+            setWhId(alt.id); setCreatedTask(null); setFailInfo(null)
+            if (activeDeal) pickMut.mutate({ dealId: activeDeal, warehouseId: alt.id })
+          }}>
+            «{createdTask.alt_warehouse.name}» bo'yicha tuzish
+          </Button>
         </Card>
       )}
 

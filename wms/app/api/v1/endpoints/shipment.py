@@ -29,6 +29,7 @@ from app.models.inventory import (
     PackageType, Product, StockItem, StockStatus,
 )
 from app.models.task import Task, TaskStatus, TaskType
+from app.models.warehouse import Warehouse
 from app.schemas.shipment import (
     OrderLineIn, PickStop, PickTaskCreate, PickTaskOut,
     ScanValidateRequest, ScanValidateResponse,
@@ -171,6 +172,37 @@ async def _blocked_batches_note(
     if not parts:
         return None
     return "Omborda bor, lekin partiya holati sabab terilmaydi: " + ", ".join(parts)
+
+
+async def _alt_warehouse_with_stock(
+    db: AsyncSession, *, tenant_id: uuid.UUID, exclude_wh: uuid.UUID, product_ids: set[uuid.UUID]
+) -> dict | None:
+    """Tanlangan skladda qoldiq topilmasa — shu tovarlar QAYSI boshqa skladda erkin
+    qoldig'i borligini topadi (eng ko'p SKU qoplaydigan sklad). Yig'uvchiga "bu
+    buyurtma tovarlari <sklad>da bor — o'sha skladni tanlang" deb yo'l ko'rsatish uchun."""
+    if not product_ids:
+        return None
+    row = (await db.execute(
+        select(
+            Warehouse.id, Warehouse.name,
+            func.count(func.distinct(StockItem.product_id)),
+        )
+        .join(Warehouse, Warehouse.id == StockItem.warehouse_id)
+        .where(
+            Warehouse.tenant_id == tenant_id,
+            Warehouse.is_active.is_(True),
+            StockItem.warehouse_id != exclude_wh,
+            StockItem.product_id.in_(product_ids),
+            StockItem.status == StockStatus.AVAILABLE,
+            (StockItem.qty - StockItem.qty_booked) > 0,
+        )
+        .group_by(Warehouse.id, Warehouse.name)
+        .order_by(func.count(func.distinct(StockItem.product_id)).desc())
+        .limit(1)
+    )).first()
+    if not row:
+        return None
+    return {"id": str(row[0]), "name": row[1], "skus": int(row[2])}
 
 
 async def _availability_map(
@@ -537,6 +569,14 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
     db.add(task)
     await db.commit()
 
+    # Tanlangan skladda hech narsa terilmasa — tovarlar boshqa skladda bo'lishi mumkin.
+    alt_warehouse = None
+    if not route:
+        alt_warehouse = await _alt_warehouse_with_stock(
+            db, tenant_id=user.tenant_id, exclude_wh=body.warehouse_id,
+            product_ids={pid for _, pid in resolved_lines},
+        )
+
     return PickTaskOut(
         document_id=doc.id,
         task_id=task.id,
@@ -544,6 +584,7 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
         shortfall_lines=shortfall_lines,
         issues=issues,
         route=route,
+        alt_warehouse=alt_warehouse,
     )
 
 
