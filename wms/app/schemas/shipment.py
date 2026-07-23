@@ -67,6 +67,7 @@ class OrderLineIn(BaseModel):
     product_code: str | None = None       # Smartup product_code (asosiy mapping kaliti)
     product_name: str | None = None       # Smartup nomi (mapping yo'q qatorларni ko'rsatish uchun)
     product_unit_id: str | None = None
+    uom: str | None = None                 # buyurtma birligi (UNIT/dona → quti'ga aylantiramiz)
     requested_boxes: int
 
 

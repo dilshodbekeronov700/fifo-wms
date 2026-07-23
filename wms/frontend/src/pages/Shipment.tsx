@@ -63,7 +63,7 @@ const ISSUE_META: Record<string, { label: string; tone: string }> = {
 export default function Shipment() {
   const qc = useQueryClient()
   const nav = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const dealParam = searchParams.get('deal')
   const whParam = searchParams.get('wh')
 
@@ -129,9 +129,8 @@ export default function Shipment() {
     setCreatedTask(null)
     setFailInfo(null)
     pickMut.mutate({ dealId: dealParam, warehouseId: wid })
-    const next = new URLSearchParams(searchParams)
-    next.delete('deal'); next.delete('wh')
-    setSearchParams(next, { replace: true })
+    // URL parametrini TOZALAMAYMIZ — aks holda qayta-render'da tuzilgan marshrut
+    // holati yo'qolib, "Marshrut yo'q" ko'rinardi. builtFor takror build'ni to'xtatadi.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealParam, wid])
 

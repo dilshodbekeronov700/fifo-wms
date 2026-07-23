@@ -9,6 +9,7 @@ POST /shipment/confirm/{doc_id}  — Terish tugadi → Smartup ga yuborish
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -130,6 +131,34 @@ async def _resolve_product(
         if prod is not None:
             return prod
     return None
+
+
+_UNIT_UOMS = {"unit", "dona", "pcs", "piece", "шт", "штука", "ip"}
+
+
+def _parse_pack(*texts: str | None) -> int | None:
+    """Nomdan quti hajmini ajratadi: "0,330x12" / "0.5 л х 12" → 12."""
+    for s in texts:
+        if not s:
+            continue
+        m = re.search(r"[xхXХ]\s*(\d{1,4})\b", str(s))
+        if m:
+            n = int(m.group(1))
+            if n > 1:
+                return n
+    return None
+
+
+def _pack_size(ln: OrderLineIn, prod: Product | None) -> int:
+    """Bitta qutidagi dona soni (units_per_box). Avval mahsulot maydoni, so'ng nomdagi
+    "xN" (Smartup nomi yoki WMS nomi). Topilmasa 1 (aylantirmaymiz)."""
+    upb = getattr(prod, "units_per_box", None) if prod else None
+    if isinstance(upb, int) and upb > 1:
+        return upb
+    pname = None
+    if prod is not None and isinstance(prod.name, dict):
+        pname = prod.name.get("uz") or prod.name.get("ru") or prod.name.get("en")
+    return _parse_pack(ln.product_name, pname) or 1
 
 
 async def _sibling_product_ids(
@@ -297,11 +326,19 @@ async def get_shipment_orders(
             prod_cache[key] = await _resolve_product(db, user.tenant_id, code, gtin)
         return prod_cache[key]
 
+    # Qoldiq — GROUP/UNIT birodar yozuvlar bo'yicha jamlanadi (pick bilan bir xil mantiq).
+    sib_cache2: dict[uuid.UUID, list[uuid.UUID]] = {}
+
+    async def _avail_sib(pid: uuid.UUID) -> int:
+        if pid not in sib_cache2:
+            sib_cache2[pid] = await _sibling_product_ids(db, tenant_id=user.tenant_id, product_id=pid)
+        return sum(avail_map.get(s, 0) for s in sib_cache2[pid])
+
     for o in orders:
         lines: list[ShipmentOrderLine] = []
         for ln in o.lines:
             prod = await _resolve(ln.product_code, ln.gtin)
-            avail = avail_map.get(prod.id, 0) if prod else None
+            avail = (await _avail_sib(prod.id)) if prod else None
             pname = None
             if prod is not None and isinstance(prod.name, dict):
                 pname = prod.name.get("uz") or prod.name.get("ru")
@@ -394,6 +431,7 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
                 product_code=ln.product_code,
                 product_name=ln.product_name,
                 product_unit_id=ln.product_unit_id,
+                uom=ln.uom,
                 requested_boxes=int(ln.qty_ordered),
             ))
 
@@ -451,12 +489,19 @@ async def create_pick_task(body: PickTaskCreate, user: ActiveUser, db: DB):
     plans: list[PickPlan] = []
     shortfall_lines: list[str] = []
     for ln, product_id in resolved_lines:
+        # UOM: buyurtma DONA'da bo'lsa, qoldiq esa QUTI (GROUP) bo'lsa — donani qutiga
+        # aylantiramiz (aks holda 12 dona = 12 quti deb 12× ortiqcha terardi).
+        req = ln.requested_boxes
+        if (ln.uom or "").strip().lower() in _UNIT_UOMS:
+            pack = _pack_size(ln, await db.get(Product, product_id))
+            if pack > 1:
+                req = -(-ln.requested_boxes // pack)   # ceil(dona / pack) = quti
         plan = await build_pick_plan(
             db,
             warehouse_id=body.warehouse_id,
             product_id=product_id,
             order_line_id=ln.order_line_id,
-            requested_boxes=ln.requested_boxes,
+            requested_boxes=req,
             stock_product_ids=sib_cache.get(product_id) or [product_id],
         )
         plans.append(plan)
