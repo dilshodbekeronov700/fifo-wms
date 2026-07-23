@@ -15,6 +15,7 @@ const DICT: Record<string, Record<Locale, string>> = {
   'nav.receipt': { ru: 'Приёмка', uz: 'Kirim', en: 'Receipt' },
   'nav.shipment': { ru: 'Pick marshruti', uz: 'Pick marshruti', en: 'Pick route' },
   'nav.move': { ru: 'Перемещение', uz: "Ko'chirish", en: 'Move' },
+  'nav.quarantine': { ru: 'Карантин', uz: 'Karantin', en: 'Quarantine' },
   'nav.tasks': { ru: 'Задачи', uz: 'Vazifalar', en: 'Tasks' },
   'nav.analytics': { ru: 'Аналитика', uz: 'Analitika', en: 'Analytics' },
   'nav.monitoring': { ru: 'Климат', uz: 'Harorat-namlik', en: 'Climate' },

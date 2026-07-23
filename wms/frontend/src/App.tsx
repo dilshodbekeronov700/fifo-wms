@@ -17,6 +17,7 @@ import Insights from './pages/Insights'
 import Alerts from './pages/Alerts'
 import Settings from './pages/Settings'
 import Receipt from './pages/Receipt'
+import Quarantine from './pages/Quarantine'
 import Shipment from './pages/Shipment'
 import Operations from './pages/Operations'
 import Tasks from './pages/Tasks'
@@ -75,6 +76,14 @@ export default function App() {
                 element={
                   <ProtectedRoute roles={['manager', 'admin', 'storekeeper']}>
                     <Shipment />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/quarantine"
+                element={
+                  <ProtectedRoute roles={['manager', 'admin', 'storekeeper']}>
+                    <Quarantine />
                   </ProtectedRoute>
                 }
               />

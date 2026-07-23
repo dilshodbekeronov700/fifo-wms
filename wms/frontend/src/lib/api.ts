@@ -253,6 +253,13 @@ export const putawayCancel = (reservation_id: string) =>
 export const getReservations = (warehouse_id: string, status = 'pending') =>
   api.get('/putaway/reservations', { params: { warehouse_id, status } }).then(r => r.data)
 
+// ── Quarantine (QC — partiyani bloklash/bo'shatish) ──────────────────────────
+export const getQuarantineBatches = () => api.get('/quarantine/batches').then(r => r.data)
+export const releaseBatch = (batchId: string, reason?: string) =>
+  api.post(`/quarantine/${batchId}/release`, { reason }).then(r => r.data)
+export const blockBatch = (batchId: string, reason?: string) =>
+  api.post(`/quarantine/${batchId}/block`, { reason }).then(r => r.data)
+
 // ── Cell contents (map cell-detail: stock + Asl Belgisi code tree + bron) ─────
 export const getLocationContents = (locationId: string) =>
   api.get(`/stock/location/${locationId}/contents`).then(r => r.data)

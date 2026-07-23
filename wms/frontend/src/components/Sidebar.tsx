@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, BarChart3,
   Settings, LogOut, Layers,
-  ArrowDownToLine, X, Route,
+  ArrowDownToLine, X, Route, ShieldCheck,
   Map, ArrowLeftRight, Sun, Moon, ClipboardList, Thermometer,
   PanelLeftClose, PanelLeftOpen, Cloud, LayoutGrid,
 } from 'lucide-react'
@@ -35,6 +35,7 @@ const groups: Group[] = [
       { to: '/receipt', icon: ArrowDownToLine, key: 'nav.receipt', roles: ['manager', 'admin', 'storekeeper'] },
       { to: '/shipment', icon: Route, key: 'nav.shipment', roles: ['manager', 'admin', 'storekeeper'] },
       { to: '/operations', icon: ArrowLeftRight, key: 'nav.move', roles: ['manager', 'admin', 'storekeeper'] },
+      { to: '/quarantine', icon: ShieldCheck, key: 'nav.quarantine', roles: ['manager', 'admin', 'storekeeper'] },
       { to: '/tasks', icon: ClipboardList, key: 'nav.tasks', roles: [] },
     ],
   },

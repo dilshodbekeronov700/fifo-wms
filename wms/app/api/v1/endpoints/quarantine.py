@@ -30,20 +30,29 @@ class ReasonBody(BaseModel):
     reason: str | None = None
 
 
+def _pname(p: Product) -> str | None:
+    n = p.name
+    if isinstance(n, dict):
+        return n.get("uz") or n.get("ru") or n.get("en")
+    return n or None
+
+
 @router.get("/batches", dependencies=[require_permission("quarantine", "view")])
 async def list_quarantine(user: ActiveUser, db: DB):
     rows = (await db.execute(
-        select(Batch).join(Product, Product.id == Batch.product_id).where(
+        select(Batch, Product).join(Product, Product.id == Batch.product_id).where(
             Product.tenant_id == user.tenant_id,
             Batch.status.in_([BatchStatus.QUARANTINE, BatchStatus.BLOCKED]),
         )
-    )).scalars().all()
+    )).all()
     return [
         {
-            "id": str(b.id), "product_id": str(b.product_id), "lot_number": b.lot_number,
+            "id": str(b.id), "product_id": str(b.product_id),
+            "product_name": _pname(p), "gtin": p.gtin,
+            "lot_number": b.lot_number,
             "expiry_date": b.expiry_date, "status": b.status.value,
         }
-        for b in rows
+        for b, p in rows
     ]
 
 
