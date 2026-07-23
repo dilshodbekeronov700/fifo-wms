@@ -157,9 +157,12 @@ async def reconcile_smartup(user: ActiveUser, db: DB):
 async def get_product_by_gtin(user: ActiveUser, db: DB, gtin: str):
     """Resolve a product by GTIN (used by the TSD inventory-count flow)."""
     q = select(Product).where(Product.gtin == gtin)
-    if not user.is_superadmin:
+    if user.tenant_id is not None:
         q = q.where(Product.tenant_id == user.tenant_id)
-    product = (await db.execute(q)).scalar_one_or_none()
+    # Bir xil GTIN bir nechta yozuvda bo'lishi mumkin (GROUP/UNIT dublikat, yoki
+    # tenantlararo) — scalar_one 500 beradi; faol yozuvni birinchi olamiz.
+    q = q.order_by(Product.is_active.desc()).limit(1)
+    product = (await db.execute(q)).scalars().first()
     if product is None:
         raise HTTPException(status_code=404, detail=f"GTIN {gtin} not found")
     return product
