@@ -253,7 +253,7 @@ export default function Smartup() {
             </p>
             <OrdersStatusCards rows={filtered} />
             <OrdersSummary rows={filtered} />
-            <OrdersTable rows={filtered} loading={orders.isLoading}
+            <OrdersTable rows={filtered} loading={orders.isLoading} wid={wid}
               canWrite={canWriteErp} onChanged={() => orders.refetch()} />
           </div>
         )
@@ -380,8 +380,8 @@ function OrdersSummary({ rows }: { rows: any[] }) {
   )
 }
 
-function OrdersTable({ rows, loading, canWrite, onChanged }: {
-  rows: any[]; loading: boolean; canWrite?: boolean; onChanged?: () => void
+function OrdersTable({ rows, loading, canWrite, onChanged, wid }: {
+  rows: any[]; loading: boolean; canWrite?: boolean; onChanged?: () => void; wid?: string
 }) {
   const [open, setOpen] = useState<string | null>(null)
   const nav = useNavigate()
@@ -462,7 +462,7 @@ function OrdersTable({ rows, loading, canWrite, onChanged }: {
                   <td className="px-3 py-1.5 text-right whitespace-nowrap">
                     <span className="text-slate-500">{o.lines?.length ?? 0} ta</span>
                     <button
-                      onClick={e => { e.stopPropagation(); nav(`/shipment?deal=${encodeURIComponent(o.deal_id)}`) }}
+                      onClick={e => { e.stopPropagation(); nav(`/shipment?deal=${encodeURIComponent(o.deal_id)}${wid ? `&wh=${wid}` : ''}`) }}
                       title="Bu buyurtma uchun pick marshrutini tuzish"
                       className="ml-2 inline-flex items-center gap-1 text-xs rounded-md border border-blue-200 bg-blue-50 text-blue-700 px-2 py-0.5 hover:bg-blue-100 transition">
                       <Route size={12} /> Pick

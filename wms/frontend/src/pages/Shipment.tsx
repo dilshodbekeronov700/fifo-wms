@@ -84,8 +84,8 @@ export default function Shipment() {
   })
 
   const pickMut = useMutation({
-    mutationFn: (dealId: string) =>
-      createPickTask({ warehouse_id: wid, smartup_deal_id: dealId }),
+    mutationFn: (v: { dealId: string; warehouseId: string }) =>
+      createPickTask({ warehouse_id: v.warehouseId, smartup_deal_id: v.dealId }),
     onSuccess: (data: PickTaskResult) => {
       setFailInfo(null)
       setCreatedTask(data)
@@ -127,7 +127,7 @@ export default function Shipment() {
     setActiveDeal(dealParam)
     setCreatedTask(null)
     setFailInfo(null)
-    pickMut.mutate(dealParam)
+    pickMut.mutate({ dealId: dealParam, warehouseId: wid })
     const next = new URLSearchParams(searchParams)
     next.delete('deal'); next.delete('wh')
     setSearchParams(next, { replace: true })
@@ -144,7 +144,15 @@ export default function Shipment() {
         title="Pick marshruti"
         subtitle={activeDeal ? `Buyurtma ${activeDeal} · ${activeWh?.name ?? ''}` : 'Interaktiv terish marshruti — sklad xaritasi bo\'yicha optimal yo\'l'}
         actions={
-          <Select value={wid ?? ''} onChange={e => setWhId(e.target.value)} className="w-auto min-w-40">
+          <Select
+            value={wid ?? ''}
+            onChange={e => {
+              const w = e.target.value
+              setWhId(w)
+              // Buyurtma tanlangan bo'lsa — yangi sklad bo'yicha marshrutni qayta tuzamiz.
+              if (activeDeal && w) { setCreatedTask(null); setFailInfo(null); pickMut.mutate({ dealId: activeDeal, warehouseId: w }) }
+            }}
+            className="w-auto min-w-40">
             {(warehouses as any[]).map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </Select>
         }
