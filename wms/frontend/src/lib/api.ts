@@ -313,3 +313,13 @@ export const getStockSummary = (
   api
     .get('/stock/summary', { params: { warehouse_id: warehouseId, ...(params ?? {}) } })
     .then(r => r.data)
+
+// Savdo-birligi bo'yicha jamlangan qoldiq (GROUP/UNIT birlashadi)
+export const getStockConsolidated = (warehouseId: string) =>
+  api.get('/stock/consolidated', { params: { warehouse_id: warehouseId } }).then(r => r.data)
+
+// Tasdiqlanmagan chiqim bandlarini bo'shatish (ERKIN=0 muammosi)
+export const releaseBookings = (warehouseId: string, productId?: string) =>
+  api.post('/stock/release-bookings', null, {
+    params: { warehouse_id: warehouseId, ...(productId ? { product_id: productId } : {}) },
+  }).then(r => r.data)

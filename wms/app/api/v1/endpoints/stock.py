@@ -1,5 +1,6 @@
 """Stock query endpoints."""
 import uuid
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,10 +8,29 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ActiveUser, ensure_warehouse_access, get_db, require_permission
-from app.models.inventory import Batch, MarkingCode, Product, StockItem, StockStatus
+from app.models.inventory import (
+    Batch, Document, DocumentStatus, DocumentType, MarkingCode, Product,
+    StockItem, StockStatus,
+)
+from app.models.ledger import LedgerAction, LedgerEntry
 from app.models.reservation import PutawayReservation, ReservationStatus
+from app.models.task import Task, TaskStatus, TaskType
 from app.models.warehouse import Location, LocationStatus, Zone
 from app.schemas.inventory import StockItemOut
+
+
+def _tradeunit_key(gtin: str | None, product_id: uuid.UUID) -> str:
+    """Savdo-birligi kaliti — GTIN-14 ning o'rta 12 raqami (qadoq darajasidan qat'i
+    nazar GROUP/UNIT birlashadi). GTIN bo'lmasa product_id."""
+    if gtin and len(gtin) == 14 and gtin.isdigit():
+        return gtin[1:13]
+    return str(product_id)
+
+
+def _pname(n) -> str:
+    if isinstance(n, dict):
+        return n.get("uz") or n.get("ru") or n.get("en") or "—"
+    return str(n) if n else "—"
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 DB = Annotated[AsyncSession, Depends(get_db)]
@@ -287,3 +307,165 @@ async def get_stock_summary(
         "blocked_qty": row.blocked_qty,
         "near_empty_locations": near_empty.scalar_one(),
     }
+
+
+@router.get("/consolidated", dependencies=[require_permission("stock", "view")])
+async def get_stock_consolidated(
+    user: ActiveUser,
+    db: DB,
+    warehouse_id: uuid.UUID = ...,
+    velocity_days: int = 30,
+):
+    """Savdo-birligi bo'yicha JAMLANGAN qoldiq (GROUP/UNIT yozuvlari GTIN negizi bo'yicha
+    birlashadi). Har qatorда: jami/bron/erkin, yacheykalar, eng yaqin muddat, ochiq pallet,
+    bloklangan, harakat tezligi (velocity) va «necha kunga yetadi» (days-of-supply)."""
+    await ensure_warehouse_access(db, user, warehouse_id)
+    today = date.today()
+
+    rows = (await db.execute(
+        select(
+            StockItem.product_id, Product.name, Product.gtin, Product.category,
+            Product.units_per_box, Product.abc_class,
+            Location.code.label("loc"), Batch.expiry_date, Batch.lot_number,
+            StockItem.qty, StockItem.qty_booked, StockItem.status, StockItem.pallet_open,
+        )
+        .select_from(StockItem)
+        .join(Product, StockItem.product_id == Product.id)
+        .join(Location, StockItem.location_id == Location.id)
+        .outerjoin(Batch, StockItem.batch_id == Batch.id)
+        .where(StockItem.warehouse_id == warehouse_id)
+    )).all()
+
+    # Velocity — oxirgi N kun SHIPMENT (chiqim) miqdori, mahsulot bo'yicha.
+    since = datetime.now(timezone.utc) - timedelta(days=velocity_days)
+    vel_rows = (await db.execute(
+        select(LedgerEntry.product_id, func.coalesce(func.sum(func.abs(LedgerEntry.qty_delta)), 0))
+        .where(
+            LedgerEntry.warehouse_id == warehouse_id,
+            LedgerEntry.action == LedgerAction.SHIPMENT,
+            LedgerEntry.created_at >= since,
+        )
+        .group_by(LedgerEntry.product_id)
+    )).all()
+    vel_by_pid = {pid: int(v or 0) for pid, v in vel_rows}
+
+    groups: dict[str, dict] = {}
+    for r in rows:
+        key = _tradeunit_key(r.gtin, r.product_id)
+        g = groups.get(key)
+        if g is None:
+            g = groups[key] = {
+                "key": key, "product_ids": set(), "names": [], "gtin": r.gtin,
+                "category": r.category, "units_per_box": None, "abc_class": None,
+                "qty": 0, "booked": 0, "blocked_qty": 0, "locations": set(),
+                "open_pallet": False, "batches": set(), "nearest_expiry": None,
+                "expired_qty": 0, "sold": 0,
+            }
+        g["product_ids"].add(r.product_id)
+        g["names"].append(_pname(r.name))
+        if r.gtin and (not g["gtin"] or len(str(r.gtin)) < len(str(g["gtin"]))):
+            g["gtin"] = r.gtin
+        if r.units_per_box and (g["units_per_box"] or 0) < r.units_per_box:
+            g["units_per_box"] = r.units_per_box
+        if r.abc_class is not None and g["abc_class"] is None:
+            g["abc_class"] = r.abc_class.value if hasattr(r.abc_class, "value") else r.abc_class
+        g["qty"] += r.qty or 0
+        g["booked"] += r.qty_booked or 0
+        if r.status == StockStatus.BLOCKED:
+            g["blocked_qty"] += r.qty or 0
+        if r.qty and r.qty > 0:
+            g["locations"].add(r.loc)
+        if r.pallet_open:
+            g["open_pallet"] = True
+        if r.lot_number:
+            g["batches"].add(r.lot_number)
+        if r.expiry_date:
+            ed = r.expiry_date if isinstance(r.expiry_date, date) else None
+            if ed:
+                if g["nearest_expiry"] is None or ed < g["nearest_expiry"]:
+                    g["nearest_expiry"] = ed
+                if ed < today:
+                    g["expired_qty"] += r.qty or 0
+
+    out = []
+    for g in groups.values():
+        for pid in g["product_ids"]:
+            g["sold"] += vel_by_pid.get(pid, 0)
+        avail = g["qty"] - g["booked"]
+        # Ko'rsatiladigan nom — "(GROUP)" bo'lmagani afzal, aks holda eng qisqasi.
+        clean = [n for n in g["names"] if "(GROUP)" not in n and "(BOX)" not in n]
+        name = (clean or sorted(g["names"], key=len))[0] if g["names"] else "—"
+        per_day = g["sold"] / velocity_days if velocity_days else 0
+        dos = round(avail / per_day, 1) if per_day > 0 else None
+        ne = g["nearest_expiry"]
+        out.append({
+            "key": g["key"],
+            "product_ids": [str(p) for p in g["product_ids"]],
+            "name": name,
+            "gtin": g["gtin"],
+            "category": g["category"],
+            "units_per_box": g["units_per_box"],
+            "abc_class": g["abc_class"],
+            "qty": g["qty"], "booked": g["booked"], "available": avail,
+            "blocked_qty": g["blocked_qty"],
+            "locations": sorted(g["locations"]),
+            "location_count": len(g["locations"]),
+            "open_pallet": g["open_pallet"],
+            "batch_count": len(g["batches"]),
+            "nearest_expiry": ne.isoformat() if ne else None,
+            "expiry_days": (ne - today).days if ne else None,
+            "expired_qty": g["expired_qty"],
+            "sold_30d": g["sold"],
+            "days_of_supply": dos,
+        })
+    out.sort(key=lambda x: x["name"].lower())
+    return out
+
+
+@router.post("/release-bookings", dependencies=[require_permission("stock", "view")])
+async def release_bookings(
+    user: ActiveUser,
+    db: DB,
+    warehouse_id: uuid.UUID = ...,
+    product_id: uuid.UUID | None = None,
+):
+    """Tasdiqlanmagan (IN_PROGRESS) chiqim/terish hujjatlari band qilib qo'ygan qoldiqni
+    BO'SHATADI — ochiq pick vazifalari yig'ilib, ERKIN=0 bo'lib qolganда kerak. Tegishli
+    SHIPMENT hujjatlar + PICK vazifalar bekor qilinadi va qty_booked qaytariladi."""
+    await ensure_warehouse_access(db, user, warehouse_id)
+
+    # IN_PROGRESS chiqim hujjatlarini bekor qilamiz + ularning PICK vazifalarini.
+    docs = (await db.execute(
+        select(Document).where(
+            Document.tenant_id == user.tenant_id,
+            Document.warehouse_id == warehouse_id,
+            Document.doc_type == DocumentType.SHIPMENT,
+            Document.status == DocumentStatus.IN_PROGRESS,
+        )
+    )).scalars().all()
+    doc_ids = [d.id for d in docs]
+    for d in docs:
+        d.status = DocumentStatus.CANCELLED
+    if doc_ids:
+        tasks = (await db.execute(
+            select(Task).where(
+                Task.document_id.in_(doc_ids),
+                Task.task_type == TaskType.PICK,
+                Task.status.in_([TaskStatus.PENDING, TaskStatus.IN_PROGRESS]),
+            )
+        )).scalars().all()
+        for t in tasks:
+            t.status = TaskStatus.CANCELLED
+
+    # Band qoldiqni qaytaramiz (rezervlar hujjat bilan bekor bo'ldi).
+    q = select(StockItem).where(
+        StockItem.warehouse_id == warehouse_id, StockItem.qty_booked > 0
+    )
+    if product_id is not None:
+        q = q.where(StockItem.product_id == product_id)
+    items = (await db.execute(q)).scalars().all()
+    freed = sum(i.qty_booked for i in items)
+    for i in items:
+        i.qty_booked = 0
+    await db.commit()
+    return {"cancelled_documents": len(doc_ids), "freed_qty": int(freed), "stock_items": len(items)}
